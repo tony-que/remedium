@@ -215,3 +215,68 @@ model AuditLog {
   @@index([at])
   @@map("audit_log")
 }
+
+// ---------------------------------------------------------------------------
+// Auth.js tables (names and fields as @auth/prisma-adapter expects)
+//
+// Sessions are JWT cookies, so the sessions table stays empty; it exists
+// because the adapter's interface includes it. Microsoft's OAuth tokens are
+// stripped before an account is saved (see lib/auth.ts), so the token columns
+// stay empty too. Roles are NOT stored here: every request looks the email
+// up in allowed_users, so removing someone takes effect immediately.
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? @map("email_verified") @db.Timestamptz(3)
+  image         String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  accounts Account[]
+  sessions Session[]
+
+  @@map("users")
+}
+
+model Account {
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime @db.Timestamptz(3)
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}

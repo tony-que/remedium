@@ -5,6 +5,8 @@
 //
 // * SKU conversions come from sku_eaches_conversion.csv. Existing rows are
 //   never overwritten, so re-running the seed can't undo the admin's edits.
+// * The first admin comes from ADMIN_EMAIL (production-safe; never demotes
+//   or removes anyone).
 // * Fake sales data is for local work only. It is refused when
 //   NODE_ENV=production, and every fake row has an id starting "seed-"
 //   (real QuickBooks ids are numeric), so re-seeding replaces only fake rows.
@@ -16,6 +18,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { parseConversionsCsv } from "@/lib/conversions";
 import { parseItemName } from "@/lib/items";
+import { normalizeEmail } from "@/lib/auth-rules";
 
 const CSV_PATH = path.join(__dirname, "..", "sku_eaches_conversion.csv");
 const SEED_ACTOR = "seed: sku_eaches_conversion.csv";
@@ -36,6 +39,27 @@ async function seedConversions() {
     `SKU conversions: ${rows.length} in CSV, ${result.count} added, ${rows.length - result.count} already present` +
       ` (${unconfirmed} marked "please fill in")`,
   );
+}
+
+async function seedAdmin() {
+  const raw = process.env.ADMIN_EMAIL;
+  if (!raw) {
+    console.log("Admin: ADMIN_EMAIL not set, skipped");
+    return;
+  }
+  const email = normalizeEmail(raw);
+  if (!email) throw new Error(`ADMIN_EMAIL "${raw}" is not a valid email address`);
+  const existing = await prisma.allowedUser.findUnique({ where: { email } });
+  if (existing?.role === "admin") {
+    console.log(`Admin: ${email} already an admin`);
+    return;
+  }
+  await prisma.allowedUser.upsert({
+    where: { email },
+    create: { email, role: "admin", addedBy: "seed: ADMIN_EMAIL" },
+    update: { role: "admin" },
+  });
+  console.log(`Admin: ${email} ${existing ? "promoted to" : "added as"} admin`);
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +212,7 @@ async function seedFakeData() {
 async function main() {
   const noFake = process.argv.includes("--no-fake");
   await seedConversions();
+  await seedAdmin();
   if (!noFake) await seedFakeData();
 }
 
