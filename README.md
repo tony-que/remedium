@@ -143,6 +143,8 @@ last admin, and won't let an admin remove themselves.
 
 ### Microsoft Entra ID setup (once)
 
+Full step-by-step guide with testing and troubleshooting: [`docs/ENTRA_SETUP.md`](docs/ENTRA_SETUP.md).
+
 Two tenants sign in today, so the app registration is multi-tenant and the
 app itself checks the tenant against the list:
 

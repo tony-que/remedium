@@ -87,7 +87,7 @@ review can take a few days. Intuit will ask for:
 
 ## 5. Microsoft sign-in (Entra ID)
 
-Follow **README → Sign-in → Microsoft Entra ID setup**, with the redirect URI
+Follow [`docs/ENTRA_SETUP.md`](docs/ENTRA_SETUP.md) (also summarized under README → Sign-in), with the redirect URI
 `<APP>/api/auth/callback/microsoft-entra-id`. Have a stairwayventures.com
 tenant admin open the admin-consent link given there once.
 
