@@ -215,3 +215,31 @@ export async function disconnect(actor: string): Promise<{ revoked: boolean }> {
   await audit(actor, "qbo_disconnected", { realmId: row.realmId, revoked });
   return { revoked };
 }
+
+export type DisconnectCheck =
+  | { status: "disconnected"; companyName: string | null }
+  | { status: "still_connected"; companyName: string | null }
+  | { status: "not_connected" }
+  | { status: "unknown"; error: string };
+
+/**
+ * For the landing page Intuit opens after someone disconnects the app inside
+ * QuickBooks. Asks Intuit for a fresh token: if Intuit says the grant is gone
+ * (invalid_grant), the stored connection is cleared so the admin page shows
+ * "Not connected" at once. Any other failure leaves it alone.
+ */
+export async function confirmDisconnected(actor: string, opts: { config?: QboConfig; fetchImpl?: typeof fetch } = {}): Promise<DisconnectCheck> {
+  const row = await prisma.qboConnection.findUnique({ where: { id: 1 } });
+  if (!row) return { status: "not_connected" };
+  try {
+    await getAccessToken({ force: true, config: opts.config, fetchImpl: opts.fetchImpl });
+    return { status: "still_connected", companyName: row.companyName };
+  } catch (err) {
+    if (err instanceof QboOAuthError && err.code === "invalid_grant") {
+      await prisma.qboConnection.deleteMany({ where: { id: 1 } });
+      await audit(actor, "qbo_disconnected", { realmId: row.realmId, revoked: true, by: "QuickBooks" });
+      return { status: "disconnected", companyName: row.companyName };
+    }
+    return { status: "unknown", error: err instanceof Error ? err.message : String(err) };
+  }
+}

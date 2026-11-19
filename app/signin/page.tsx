@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { devLoginEnabled, entraEnabled, magicLinkEnabled, signIn } from "@/lib/auth";
 import { getAccess } from "@/lib/access";
+import { safeReturnTo } from "@/lib/return-to";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +12,12 @@ const ERRORS: Record<string, string> = {
   Configuration: "Sign-in is not set up correctly. Tell your admin.",
 };
 
-async function signInWith(provider: string, formData?: FormData) {
+async function signInWith(provider: string, returnTo: string, formData?: FormData) {
   "use server";
+  const redirectTo = safeReturnTo(returnTo) ?? "/";
+  if (formData) formData.set("redirectTo", redirectTo);
   try {
-    await signIn(provider, formData ?? { redirectTo: "/" });
+    await signIn(provider, formData ?? { redirectTo });
   } catch (err) {
     // signIn redirects by throwing; only real auth errors are handled here.
     if (err instanceof AuthError) redirect(`/signin?error=${encodeURIComponent(err.type)}`);
@@ -22,11 +25,12 @@ async function signInWith(provider: string, formData?: FormData) {
   }
 }
 
-export default async function SignInPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function SignInPage({ searchParams }: { searchParams: Promise<{ error?: string; callbackUrl?: string }> }) {
+  const { error, callbackUrl } = await searchParams;
+  const returnTo = safeReturnTo(callbackUrl) ?? "/";
   const access = await getAccess();
-  if (access.status !== "signed_out") redirect("/");
+  if (access.status !== "signed_out") redirect(returnTo);
 
-  const { error } = await searchParams;
   const message = error ? (ERRORS[error] ?? "Sign-in failed. Try again, or ask your admin.") : null;
   const nothingConfigured = !entraEnabled && !magicLinkEnabled && !devLoginEnabled;
 
@@ -44,7 +48,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
       )}
 
       {entraEnabled && (
-        <form action={signInWith.bind(null, "microsoft-entra-id", undefined)}>
+        <form action={signInWith.bind(null, "microsoft-entra-id", returnTo, undefined)}>
           <button
             type="submit"
             className="w-full rounded-md bg-[#2f2f2f] px-4 py-2.5 font-medium text-white hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
@@ -55,7 +59,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
       )}
 
       {magicLinkEnabled && (
-        <form action={async (fd) => { "use server"; await signInWith("resend", fd); }} className="flex flex-col gap-2">
+        <form action={async (fd) => { "use server"; await signInWith("resend", returnTo, fd); }} className="flex flex-col gap-2">
           {entraEnabled && <p className="text-center text-xs uppercase tracking-wide opacity-60">or</p>}
           <label htmlFor="email" className="text-sm font-medium">
             Email me a sign-in link
@@ -69,7 +73,6 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
             placeholder="you@company.com"
             className="rounded-md border border-current/20 bg-transparent px-3 py-2"
           />
-          <input type="hidden" name="redirectTo" value="/" />
           <button type="submit" className="rounded-md border border-current/30 px-4 py-2 font-medium hover:bg-current/5">
             Send link
           </button>
@@ -78,7 +81,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
 
       {devLoginEnabled && (
         <form
-          action={async (fd) => { "use server"; await signInWith("dev-login", fd); }}
+          action={async (fd) => { "use server"; await signInWith("dev-login", returnTo, fd); }}
           className="flex flex-col gap-2 rounded-md border border-dashed border-amber-500/60 p-3"
         >
           <label htmlFor="dev-email" className="text-sm font-medium">
@@ -91,7 +94,6 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
             required
             className="rounded-md border border-current/20 bg-transparent px-3 py-2"
           />
-          <input type="hidden" name="redirectTo" value="/" />
           <button type="submit" className="rounded-md border border-current/30 px-4 py-2 font-medium hover:bg-current/5">
             Sign in as this email
           </button>

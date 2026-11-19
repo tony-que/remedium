@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import { decrypt } from "@/lib/qbo/crypto";
 import { getQboConfig } from "@/lib/qbo/config";
-import { getAccessToken, QboNotConnectedError, saveConnection } from "@/lib/qbo/connection";
+import { confirmDisconnected, getAccessToken, QboNotConnectedError, saveConnection } from "@/lib/qbo/connection";
 import { QboOAuthError } from "@/lib/qbo/oauth";
 
 // Runs against the test database. Each test starts from a saved connection
@@ -157,5 +157,33 @@ describe("QuickBooks connection", () => {
     await connect(60 * 60_000);
     const log = await prisma.auditLog.findFirstOrThrow({ where: { action: "qbo_connected" } });
     expect(JSON.stringify(log.detail)).not.toMatch(/access-1|refresh-1/);
+  });
+});
+
+describe("Disconnect URL check", () => {
+  it("clears the connection when Intuit says the grant is gone", async () => {
+    await connect(60 * 60_000);
+    const revoked = vi.fn(async () => new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 }));
+    expect(await confirmDisconnected("a@example.com", { config, fetchImpl: revoked })).toEqual({ status: "disconnected", companyName: "Sandbox Company_US_1" });
+    expect(await prisma.qboConnection.count()).toBe(0);
+    const log = await prisma.auditLog.findFirstOrThrow({ where: { action: "qbo_disconnected" } });
+    expect(log.detail).toMatchObject({ realmId: "9341450000000000", by: "QuickBooks" });
+  });
+
+  it("leaves a working connection alone", async () => {
+    await connect(60 * 60_000);
+    expect(await confirmDisconnected("a@example.com", { config, fetchImpl: intuitOk() })).toEqual({ status: "still_connected", companyName: "Sandbox Company_US_1" });
+    expect(await prisma.qboConnection.count()).toBe(1);
+  });
+
+  it("doesn't clear anything on an unclear failure", async () => {
+    await connect(60 * 60_000);
+    const down = vi.fn(async () => new Response("<html>502</html>", { status: 502 }));
+    expect((await confirmDisconnected("a@example.com", { config, fetchImpl: down })).status).toBe("unknown");
+    expect(await prisma.qboConnection.count()).toBe(1);
+  });
+
+  it("reports when nothing was connected", async () => {
+    expect(await confirmDisconnected("a@example.com", { config })).toEqual({ status: "not_connected" });
   });
 });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { apiGate } from "@/lib/access";
+import { getAccess } from "@/lib/access";
+import { signInUrl } from "@/lib/return-to";
 import { audit } from "@/lib/audit";
 import { getQboConfig, QboConfigError } from "@/lib/qbo/config";
 import { authorizeUrl } from "@/lib/qbo/oauth";
@@ -7,10 +8,18 @@ import { newState, STATE_COOKIE, STATE_MAX_AGE_S } from "@/lib/qbo/state";
 
 export const dynamic = "force-dynamic";
 
-/** Admin only: starts the QuickBooks OAuth flow. */
+/**
+ * Admin only: starts the QuickBooks OAuth flow. This is also the
+ * "Connect/Reconnect URL" registered with Intuit, so people can arrive here
+ * from QuickBooks without being signed in: they go to sign-in and come back.
+ */
 export async function GET(req: Request) {
-  const gate = await apiGate("admin");
-  if (gate instanceof NextResponse) return gate;
+  const access = await getAccess();
+  if (access.status === "signed_out") return NextResponse.redirect(new URL(signInUrl("/api/qbo/connect"), req.url));
+  if (access.status !== "ok" || access.role !== "admin") {
+    return NextResponse.redirect(new URL(access.status === "ok" ? "/no-access?need=admin" : "/no-access", req.url));
+  }
+  const gate = { email: access.email };
 
   let config;
   try {

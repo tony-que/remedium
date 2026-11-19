@@ -1,11 +1,13 @@
 import "server-only";
 import { cache } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import type { Role } from "@/lib/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { normalizeEmail } from "@/lib/auth-rules";
+import { RETURN_TO_HEADER, signInUrl } from "@/lib/return-to";
 
 // The one place that decides who may see what. Every page, server action and
 // API route goes through these helpers; nothing trusts the browser.
@@ -24,10 +26,10 @@ export const getAccess = cache(async (): Promise<Access> => {
   return row ? { status: "ok", email, role: row.role } : { status: "no_access", email };
 });
 
-/** For pages: signed-in and on the allow-list, or redirect. */
+/** For pages: signed-in and on the allow-list, or redirect (back here after signing in). */
 export async function requireViewer(): Promise<{ email: string; role: Role }> {
   const access = await getAccess();
-  if (access.status === "signed_out") redirect("/signin");
+  if (access.status === "signed_out") redirect(signInUrl((await headers()).get(RETURN_TO_HEADER)));
   if (access.status === "no_access") redirect("/no-access");
   return access;
 }

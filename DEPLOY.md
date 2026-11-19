@@ -75,9 +75,16 @@ too for local work.
 details and a short assessment questionnaire are complete. Start this early;
 review can take a few days. Intuit will ask for:
 
-- **Host domain and Launch URL:** `<APP>` and `<APP>/admin`.
+- **Host domain:** the bare domain, no `https://` or path (e.g.
+  `sales.remedium-usa.com`).
+- **Launch URL** (opening the app from inside QuickBooks): `<APP>/admin`.
+- **Connect/Reconnect URL:** `<APP>/api/qbo/connect`. Someone arriving from
+  Intuit who isn't signed in goes to sign-in and comes straight back, and a
+  non-admin sees "Admins only".
 - **Disconnect URL** (where Intuit sends someone who disconnects the app from
-  inside QuickBooks): `<APP>/admin`.
+  inside QuickBooks): `<APP>/quickbooks-disconnected`. That page checks with
+  Intuit at once and, if access is really gone, clears the stored connection
+  and offers Reconnect.
 - **Redirect URI:** `<APP>/api/qbo/callback` under **Production** settings.
 - **Privacy policy and end-user license agreement URLs.** These are Remedium's
   own legal documents; they aren't part of this app. If the company has none,

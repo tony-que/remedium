@@ -133,6 +133,11 @@ Who can sign in and who can see data are separate checks:
    on their next page load. Viewers get 403 from admin API routes and are
    turned away from `/admin`.
 
+After signing in, people return to the page they asked for, so a shared
+dashboard link keeps its filters. `middleware.ts` records the path, and
+`lib/return-to.ts` accepts only paths on this site, so a crafted link can't
+redirect anyone elsewhere.
+
 Sessions are 12-hour signed cookies. Microsoft is asked only for name and
 email: no Graph access, no profile photo, and its tokens are never stored.
 Sign-ins, denied sign-ins, magic-link requests and allow-list changes go to
@@ -237,6 +242,13 @@ admin makes once from `/admin`. Viewers never need QuickBooks access.
 - Intuit's refresh tokens last about 100 days from the last refresh, so the
   nightly sync keeps the connection alive. `/admin` shows the reconnect-by date.
 - **Disconnect** revokes the token at Intuit and deletes the stored connection.
+- **Disconnected from inside QuickBooks:** Intuit sends the admin to
+  `/quickbooks-disconnected`, which asks Intuit for a fresh token. If Intuit
+  answers `invalid_grant`, the stored connection is cleared and the page
+  offers Reconnect. A working connection, or an unclear failure, is left alone.
+- **Connect from Intuit's side:** `/api/qbo/connect` is also Intuit's
+  Connect/Reconnect URL. A visitor who isn't signed in is sent to sign-in and
+  brought back.
 - **Connecting a different company** (for example, moving from the sandbox to
   the real company file) clears all synced QuickBooks data and the sync
   history, so the next sync is a full backfill of the new company.
