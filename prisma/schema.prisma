@@ -189,15 +189,22 @@ model AllowedUser {
 /// The single company-level QuickBooks connection (id is always 1).
 /// Tokens are AES-256-GCM ciphertext; they are never sent to the browser.
 model QboConnection {
-  id                    Int      @id @default(1)
-  realmId               String   @map("realm_id")
-  accessTokenEnc        String   @map("access_token_enc")
-  refreshTokenEnc       String   @map("refresh_token_enc")
-  accessTokenExpiresAt  DateTime @map("access_token_expires_at") @db.Timestamptz(3)
-  refreshTokenExpiresAt DateTime @map("refresh_token_expires_at") @db.Timestamptz(3)
-  connectedBy           String   @map("connected_by")
-  connectedAt           DateTime @default(now()) @map("connected_at") @db.Timestamptz(3)
-  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                    Int       @id @default(1)
+  realmId               String    @map("realm_id")
+  /// "sandbox" or "production": a connection only works with the matching keys.
+  environment           String
+  /// CompanyInfo.CompanyName at connect time, shown on the admin page.
+  companyName           String?   @map("company_name")
+  accessTokenEnc        String    @map("access_token_enc")
+  refreshTokenEnc       String    @map("refresh_token_enc")
+  accessTokenExpiresAt  DateTime  @map("access_token_expires_at") @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime  @map("refresh_token_expires_at") @db.Timestamptz(3)
+  /// Last successful token refresh, and the last refresh failure (cleared on success).
+  lastRefreshedAt       DateTime? @map("last_refreshed_at") @db.Timestamptz(3)
+  lastRefreshError      String?   @map("last_refresh_error")
+  connectedBy           String    @map("connected_by")
+  connectedAt           DateTime  @default(now()) @map("connected_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("qbo_connection")
 }

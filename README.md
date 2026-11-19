@@ -4,8 +4,8 @@ A private web app that syncs Remedium Healthcare Products' QuickBooks Online
 invoices into Postgres and shows sales by SKU and by customer. The full build
 spec is in [`SPEC.md`](SPEC.md).
 
-**Status:** build steps 1–3 of 7 (scaffold, database, sign-in) are done. The
-QuickBooks connection, sync and dashboard come in steps 4–6.
+**Status:** build steps 1–4 of 7 (scaffold, database, sign-in, QuickBooks
+connection) are done. The sync and dashboard come in steps 5–6.
 
 ## Stack
 
@@ -189,6 +189,52 @@ under `next dev`: production builds never include it, even with the variable
 set. The allow-list still applies, so sign in as `ADMIN_EMAIL` to reach
 `/admin`.
 
+## QuickBooks connection
+
+The app reads QuickBooks through one company-level OAuth connection that an
+admin makes once from `/admin`. Viewers never need QuickBooks access.
+
+### Intuit app setup (once per set of keys)
+
+1. At [developer.intuit.com](https://developer.intuit.com), create an app with
+   the **Accounting** scope (`com.intuit.quickbooks.accounting`). The app only
+   reads.
+2. Under **Development** (sandbox) and later **Production** settings, add the
+   redirect URI `https://<your app's domain>/api/qbo/callback`. Development keys
+   also accept `http://localhost:3000/api/qbo/callback`.
+3. Set `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, `QBO_REDIRECT_URI` (exactly as
+   registered) and `QBO_ENVIRONMENT` (`sandbox` or `production`). Generate
+   `TOKEN_ENC_KEY` with `openssl rand -base64 32`, and keep it: tokens saved
+   under one key can't be read with another, so a lost key means reconnecting.
+4. Sandbox only: create a sandbox company under **Sandboxes** in the Intuit
+   developer portal. Intuit lists only the companies of the account you sign
+   in with.
+
+### How it works
+
+- **Connect** (`/api/qbo/connect`, admin only) sends the admin to Intuit with
+  a random `state` value, also kept in a 10-minute HttpOnly cookie.
+  **Callback** (`/api/qbo/callback`) requires the same signed-in admin and a
+  matching `state` before it exchanges the code.
+- Tokens are stored AES-256-GCM encrypted (`lib/qbo/crypto.ts`), each bound to
+  its column, and only decrypted on the server in `lib/qbo/connection.ts`.
+  They are never sent to the browser, put in an error message or logged.
+- `getAccessToken()` refreshes when under 5 minutes remain, or always with
+  `force` (the sync will force it before every run). It saves the rolled-forward
+  refresh token each time, under a row lock so simultaneous refreshes can't
+  lose it. A failed refresh keeps the old tokens and shows the error on
+  `/admin`.
+- Intuit's refresh tokens last about 100 days from the last refresh, so the
+  nightly sync keeps the connection alive. `/admin` shows the reconnect-by date.
+- **Disconnect** revokes the token at Intuit and deletes the stored connection.
+- The OAuth calls use plain `fetch` (`lib/qbo/oauth.ts`) rather than the
+  `intuit-oauth` package, whose dependencies fail `npm audit` and which can log
+  token responses.
+
+Behind an HTTPS proxy (some cloud dev containers), start Node with
+`NODE_USE_ENV_PROXY=1`. Node's built-in `fetch` ignores `HTTPS_PROXY`
+otherwise.
+
 ## Repo layout
 
 ```
@@ -201,7 +247,7 @@ lib/auth.ts    Auth.js setup (Microsoft, magic link, dev login)
 lib/access.ts  per-request allow-list checks for pages, actions and API routes
 lib/allowlist.ts    allow-list changes and their safety rules
 lib/audit.ts   audit log writes and 90-day pruning
-lib/qbo/       QuickBooks OAuth, API client and sync
+lib/qbo/       QuickBooks config, OAuth, token encryption and connection (sync in step 5)
 lib/metrics/   SQL queries behind every metric
 prisma/        schema, migrations and seed
 tests/         Vitest unit tests

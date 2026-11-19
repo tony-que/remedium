@@ -8,7 +8,12 @@ export type AuditAction =
   | "magic_link_requested"
   | "allowed_user_added"
   | "allowed_user_role_changed"
-  | "allowed_user_removed";
+  | "allowed_user_removed"
+  | "qbo_connect_started"
+  | "qbo_connected"
+  | "qbo_connect_failed"
+  | "qbo_tested"
+  | "qbo_disconnected";
 
 export const AUDIT_RETENTION_DAYS = 90;
 

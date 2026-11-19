@@ -1,10 +1,25 @@
 import { requireAdmin } from "@/lib/access";
 import { listAllowedUsers } from "@/lib/allowlist";
+import { getQboConfig, qboConfigured } from "@/lib/qbo/config";
+import { connectionStatus } from "@/lib/qbo/connection";
 import { AllowList } from "./allow-list";
+import { QboPanel } from "./qbo-panel";
 
-export default async function AdminPage() {
+const QBO_FLASH: Record<string, { ok: boolean; message: string }> = {
+  connected: { ok: true, message: "QuickBooks connected." },
+  denied: { ok: false, message: "The connection was cancelled in QuickBooks." },
+  state_mismatch: { ok: false, message: "That connection link expired or came from another browser. Try Connect again." },
+  not_configured: { ok: false, message: "QuickBooks keys aren't set on the server." },
+  error: { ok: false, message: "QuickBooks didn't accept the connection. Try again; details are in the server log." },
+};
+
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ qbo?: string }> }) {
   const { email } = await requireAdmin();
-  const users = await listAllowedUsers();
+  const { qbo } = await searchParams;
+  const configured = qboConfigured();
+  const config = configured ? getQboConfig() : null;
+  const [users, status] = await Promise.all([listAllowedUsers(), connectionStatus(config)]);
+  const iso = (d?: Date | null) => (d ? d.toISOString() : undefined);
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-10 px-4 py-10">
@@ -14,7 +29,24 @@ export default async function AdminPage() {
         <h2 id="qbo-heading" className="text-lg font-semibold">
           QuickBooks
         </h2>
-        <p className="text-sm opacity-70">Connection status and Refresh now arrive in build steps 4 and 5.</p>
+        <QboPanel
+          configured={configured}
+          appEnvironment={config?.environment ?? null}
+          flash={qbo ? (QBO_FLASH[qbo] ?? null) : null}
+          status={{
+            connected: status.connected,
+            realmId: status.realmId,
+            companyName: status.companyName,
+            environment: status.environment,
+            environmentMismatch: status.environmentMismatch,
+            connectedBy: status.connectedBy,
+            connectedAt: iso(status.connectedAt),
+            refreshTokenExpiresAt: iso(status.refreshTokenExpiresAt),
+            lastRefreshedAt: iso(status.lastRefreshedAt) ?? null,
+            lastRefreshError: status.lastRefreshError,
+          }}
+        />
+        <p className="text-sm opacity-70">Sync and Refresh now arrive in build step 5.</p>
       </section>
 
       <section aria-labelledby="users-heading" className="flex flex-col gap-3">

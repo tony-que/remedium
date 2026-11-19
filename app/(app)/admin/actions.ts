@@ -55,3 +55,40 @@ export async function removeUserAction(_prev: ActionResult | null, fd: FormData)
     return `Removed ${email}.`;
   });
 }
+
+// ---------------------------------------------------------------------------
+// QuickBooks connection
+// ---------------------------------------------------------------------------
+
+export async function testQboAction(): Promise<ActionResult> {
+  const { email: actor } = await requireAdmin();
+  const { testConnection, QboNotConnectedError } = await import("@/lib/qbo/connection");
+  const { QboOAuthError } = await import("@/lib/qbo/oauth");
+  const { QboConfigError } = await import("@/lib/qbo/config");
+  try {
+    const name = await testConnection(actor);
+    revalidatePath("/admin");
+    return { ok: true, message: `Connected: token refreshed and ${name ?? "the company"} answered.` };
+  } catch (err) {
+    revalidatePath("/admin");
+    if (err instanceof QboNotConnectedError || err instanceof QboConfigError) return { ok: false, message: err.message };
+    if (err instanceof QboOAuthError) {
+      const hint = err.code === "invalid_grant" ? " The connection has expired or was revoked: reconnect QuickBooks." : "";
+      return { ok: false, message: `${err.message}.${hint}` };
+    }
+    throw err;
+  }
+}
+
+export async function disconnectQboAction(): Promise<ActionResult> {
+  const { email: actor } = await requireAdmin();
+  const { disconnect } = await import("@/lib/qbo/connection");
+  const { revoked } = await disconnect(actor);
+  revalidatePath("/admin");
+  return {
+    ok: true,
+    message: revoked
+      ? "Disconnected. QuickBooks access was revoked."
+      : "Disconnected here, but Intuit couldn't be reached to revoke access. Remove the app in QuickBooks under Settings → Apps if it still shows.",
+  };
+}
