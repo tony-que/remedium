@@ -26,6 +26,13 @@ async function connect(accessExpiresInMs: number) {
   }, "Sandbox Company_US_1");
 }
 
+const tokens = () => ({
+  accessToken: "a",
+  refreshToken: "r",
+  accessTokenExpiresAt: new Date(NOW.getTime() + 3600_000),
+  refreshTokenExpiresAt: new Date(NOW.getTime() + 100 * 86_400_000),
+});
+
 let refreshCount = 0;
 function intuitOk() {
   return vi.fn(async () => {
@@ -56,6 +63,31 @@ afterAll(async () => {
 });
 
 describe("QuickBooks connection", () => {
+  it("clears synced data and sync history when a different company is connected", async () => {
+    await connect(60 * 60_000);
+    await prisma.customer.create({ data: { qboId: "c1", displayName: "Sandbox Customer" } });
+    await prisma.syncRun.create({ data: { kind: "full", status: "succeeded", triggeredBy: "test" } });
+    await prisma.skuConversion.create({ data: { sku: "KEEP", eachesPerUnit: 5, updatedBy: "test" } });
+    // Same company again: nothing is cleared.
+    expect(await saveConnection("a@example.com", "9341450000000000", "sandbox", tokens(), "Sandbox Company_US_1")).toEqual({ companyChanged: false });
+    expect(await prisma.customer.count()).toBe(1);
+    // A different company: synced rows and history go, conversions stay.
+    expect(await saveConnection("a@example.com", "123145", "production", tokens(), "Remedium")).toEqual({ companyChanged: true });
+    expect(await prisma.customer.count()).toBe(0);
+    expect(await prisma.syncRun.count()).toBe(0);
+    expect(await prisma.skuConversion.count()).toBe(1);
+    await prisma.skuConversion.deleteMany();
+  });
+
+  it("keeps synced data when the same company reconnects after a Disconnect", async () => {
+    await connect(60 * 60_000);
+    await prisma.syncRun.create({ data: { kind: "full", status: "succeeded", triggeredBy: "test" } });
+    await prisma.qboConnection.deleteMany(); // what Disconnect does, after its audit entry
+    await prisma.auditLog.create({ data: { actor: "a@example.com", action: "qbo_disconnected", detail: { realmId: "9341450000000000" } } });
+    expect(await saveConnection("a@example.com", "9341450000000000", "sandbox", tokens(), "Sandbox")).toEqual({ companyChanged: false });
+    expect(await prisma.syncRun.count()).toBe(1);
+  });
+
   it("stores tokens encrypted, never in plain text", async () => {
     await connect(60 * 60_000);
     const [row] = await prisma.$queryRaw<{ access_token_enc: string; refresh_token_enc: string }[]>`

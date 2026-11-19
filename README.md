@@ -4,8 +4,9 @@ A private web app that syncs Remedium Healthcare Products' QuickBooks Online
 invoices into Postgres and shows sales by SKU and by customer. The full build
 spec is in [`SPEC.md`](SPEC.md).
 
-**Status:** build steps 1–6 of 7 (scaffold, database, sign-in, QuickBooks
-connection, sync, dashboard) are done. Deployment is step 7.
+**Status:** build steps 1–6 are done and step 7 (deployment) is prepared: see
+[`DEPLOY.md`](DEPLOY.md) for the Vercel, Neon, Intuit and Entra setup and the
+go-live checklist. CI runs on every push (`.github/workflows/ci.yml`).
 
 ## Stack
 
@@ -102,6 +103,11 @@ lives in `prisma/migrations/`:
 override `is_product` per item, and the sync then leaves that item alone.
 
 ### Seed data
+
+`npm run db:seed -- --no-fake` is the production bootstrap, and runs on every
+Vercel deploy. It loads the CSV conversions only into an empty table and adds
+`ADMIN_EMAIL` only when there is no admin, so it never undoes an admin's
+changes. The rest of this section describes the local seed.
 
 `npm run db:seed` adds `ADMIN_EMAIL` to the allow-list as an admin (it never
 demotes or removes anyone) and loads the 54 conversions in
@@ -229,6 +235,10 @@ admin makes once from `/admin`. Viewers never need QuickBooks access.
 - Intuit's refresh tokens last about 100 days from the last refresh, so the
   nightly sync keeps the connection alive. `/admin` shows the reconnect-by date.
 - **Disconnect** revokes the token at Intuit and deletes the stored connection.
+- **Connecting a different company** (for example, moving from the sandbox to
+  the real company file) clears all synced QuickBooks data and the sync
+  history, so the next sync is a full backfill of the new company.
+  Conversions, the allow-list and the audit log stay.
 - The OAuth calls use plain `fetch` (`lib/qbo/oauth.ts`) rather than the
   `intuit-oauth` package, whose dependencies fail `npm audit` and which can log
   token responses.

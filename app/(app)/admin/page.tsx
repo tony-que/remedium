@@ -11,11 +11,18 @@ import { prisma } from "@/lib/db";
 
 const QBO_FLASH: Record<string, { ok: boolean; message: string }> = {
   connected: { ok: true, message: "QuickBooks connected." },
+  connected_new_company: {
+    ok: true,
+    message: "Connected to a different company than before, so the old company's synced data was cleared. Press Refresh now to load this company's history.",
+  },
   denied: { ok: false, message: "The connection was cancelled in QuickBooks." },
   state_mismatch: { ok: false, message: "That connection link expired or came from another browser. Try Connect again." },
   not_configured: { ok: false, message: "QuickBooks keys aren't set on the server." },
   error: { ok: false, message: "QuickBooks didn't accept the connection. Try again; details are in the server log." },
 };
+
+/** Seconds. Refresh now and Full re-read run inside this page's server actions. */
+export const maxDuration = 300;
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ qbo?: string }> }) {
   const { email } = await requireAdmin();

@@ -1,12 +1,14 @@
 // Seeds the database.
 //
-//   npm run db:seed                  conversions + fake sales data
-//   npm run db:seed -- --no-fake     conversions only
+//   npm run db:seed                  bootstrap + fake sales data (local work)
+//   npm run db:seed -- --no-fake     bootstrap only (production; runs on every deploy)
 //
-// * SKU conversions come from sku_eaches_conversion.csv. Existing rows are
-//   never overwritten, so re-running the seed can't undo the admin's edits.
-// * The first admin comes from ADMIN_EMAIL (production-safe; never demotes
-//   or removes anyone).
+// Bootstrap steps only ever fill in what's missing, so running them on every
+// deploy can't undo anything an admin did on the admin page:
+// * SKU conversions load from sku_eaches_conversion.csv only into an EMPTY
+//   table. After that, conversions are managed on the admin page (a removed
+//   conversion stays removed).
+// * ADMIN_EMAIL is added as an admin only when there is no admin at all.
 // * Fake sales data is for local work only. It is refused when
 //   NODE_ENV=production, and every fake row has an id starting "seed-"
 //   (real QuickBooks ids are numeric), so re-seeding replaces only fake rows.
@@ -24,6 +26,11 @@ const CSV_PATH = path.join(__dirname, "..", "sku_eaches_conversion.csv");
 const SEED_ACTOR = "seed: sku_eaches_conversion.csv";
 
 async function seedConversions() {
+  const existing = await prisma.skuConversion.count();
+  if (existing > 0) {
+    console.log(`SKU conversions: ${existing} already present, CSV not loaded (manage them on the admin page)`);
+    return;
+  }
   const rows = parseConversionsCsv(readFileSync(CSV_PATH, "utf8"));
   const result = await prisma.skuConversion.createMany({
     data: rows.map((r) => ({
@@ -35,31 +42,28 @@ async function seedConversions() {
     skipDuplicates: true,
   });
   const unconfirmed = rows.filter((r) => /please fill in/i.test(r.note ?? "")).length;
-  console.log(
-    `SKU conversions: ${rows.length} in CSV, ${result.count} added, ${rows.length - result.count} already present` +
-      ` (${unconfirmed} marked "please fill in")`,
-  );
+  console.log(`SKU conversions: loaded ${result.count} from the CSV (${unconfirmed} marked "please fill in")`);
 }
 
 async function seedAdmin() {
+  const admins = await prisma.allowedUser.count({ where: { role: "admin" } });
+  if (admins > 0) {
+    console.log(`Admin: ${admins} admin${admins === 1 ? "" : "s"} already on the allow-list, ADMIN_EMAIL not needed`);
+    return;
+  }
   const raw = process.env.ADMIN_EMAIL;
   if (!raw) {
-    console.log("Admin: ADMIN_EMAIL not set, skipped");
+    console.warn("Admin: no admin yet and ADMIN_EMAIL is not set, so nobody can open /admin. Set ADMIN_EMAIL and run again.");
     return;
   }
   const email = normalizeEmail(raw);
   if (!email) throw new Error(`ADMIN_EMAIL "${raw}" is not a valid email address`);
-  const existing = await prisma.allowedUser.findUnique({ where: { email } });
-  if (existing?.role === "admin") {
-    console.log(`Admin: ${email} already an admin`);
-    return;
-  }
   await prisma.allowedUser.upsert({
     where: { email },
     create: { email, role: "admin", addedBy: "seed: ADMIN_EMAIL" },
     update: { role: "admin" },
   });
-  console.log(`Admin: ${email} ${existing ? "promoted to" : "added as"} admin`);
+  console.log(`Admin: ${email} added as the first admin`);
 }
 
 // ---------------------------------------------------------------------------

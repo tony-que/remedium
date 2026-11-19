@@ -49,14 +49,22 @@ export async function connectionStatus(config: Pick<QboConfig, "environment"> | 
   };
 }
 
-/** Saves a new connection (replacing any old one) after the OAuth callback. */
+/**
+ * Saves a new connection (replacing any old one) after the OAuth callback.
+ *
+ * Connecting a different company (another realm id, e.g. moving from the
+ * Intuit sandbox to the real company file) clears every synced QuickBooks
+ * row and the sync history, in the same transaction, so the next sync is a
+ * full backfill of the new company and nothing from the old one lingers.
+ * Eaches conversions, the allow-list and the audit log are kept.
+ */
 export async function saveConnection(
   actor: string,
   realmId: string,
   environment: QboEnvironment,
   tokens: TokenSet,
   companyName: string | null,
-): Promise<void> {
+): Promise<{ companyChanged: boolean }> {
   const data = {
     realmId,
     environment,
@@ -70,8 +78,29 @@ export async function saveConnection(
     connectedBy: actor,
     connectedAt: new Date(),
   };
-  await prisma.qboConnection.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data });
-  await audit(actor, "qbo_connected", { realmId, environment, companyName });
+  const companyChanged = await prisma.$transaction(async (tx) => {
+    // The company the synced data came from: the current connection, or, after
+    // a Disconnect, the last connect/disconnect in the audit log.
+    let previousRealm = (await tx.qboConnection.findUnique({ where: { id: 1 }, select: { realmId: true } }))?.realmId;
+    if (!previousRealm) {
+      const last = await tx.auditLog.findFirst({
+        where: { action: { in: ["qbo_connected", "qbo_disconnected"] } },
+        orderBy: { id: "desc" },
+      });
+      const r = (last?.detail as { realmId?: unknown } | null)?.realmId;
+      previousRealm = typeof r === "string" ? r : undefined;
+    }
+    const anySynced = (await tx.syncRun.count()) > 0 || (await tx.invoice.count()) > 0;
+    // With synced data but no record of its company, assume it isn't this one.
+    const changed = anySynced && previousRealm !== realmId;
+    if (changed) {
+      await tx.$executeRaw`TRUNCATE invoice_lines, invoices, items, customers, sync_runs RESTART IDENTITY`;
+    }
+    await tx.qboConnection.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data });
+    return changed;
+  });
+  await audit(actor, "qbo_connected", { realmId, environment, companyName, companyChanged });
+  return { companyChanged };
 }
 
 export interface AccessToken {

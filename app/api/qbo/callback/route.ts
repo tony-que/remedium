@@ -53,8 +53,8 @@ export async function GET(req: NextRequest) {
       // The connection still works without a name; Test connection retries it.
       console.error("CompanyInfo lookup failed after connecting:", err instanceof Error ? err.message : err);
     }
-    await saveConnection(actor, realmId, config.environment, tokens, companyName);
-    return back("connected");
+    const { companyChanged } = await saveConnection(actor, realmId, config.environment, tokens, companyName);
+    return back(companyChanged ? "connected_new_company" : "connected");
   } catch (err) {
     const reason = err instanceof QboOAuthError ? (err.code ?? `http_${err.status}`) : "exception";
     console.error("QuickBooks connect failed:", err instanceof Error ? err.message : err);
