@@ -5,6 +5,8 @@ import { connectionStatus } from "@/lib/qbo/connection";
 import { AllowList } from "./allow-list";
 import { QboPanel } from "./qbo-panel";
 import { SyncPanel } from "./sync-panel";
+import { ConversionsPanel, ItemsPanel } from "./reference-panels";
+import { productSkusWithoutConversion } from "@/lib/reference-data";
 import { prisma } from "@/lib/db";
 
 const QBO_FLASH: Record<string, { ok: boolean; message: string }> = {
@@ -24,6 +26,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     listAllowedUsers(),
     connectionStatus(config),
     prisma.syncRun.findMany({ orderBy: { startedAt: "desc" }, take: 20 }),
+  ]);
+  const [items, conversions, missingConversions] = await Promise.all([
+    prisma.item.findMany({ where: { itemType: { not: "Category" } }, orderBy: [{ isProduct: "desc" }, { sku: "asc" }] }),
+    prisma.skuConversion.findMany({ orderBy: { sku: "asc" } }),
+    productSkusWithoutConversion(),
   ]);
   const iso = (d?: Date | null) => (d ? d.toISOString() : undefined);
 
@@ -76,6 +83,47 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             apiRequests: r.apiRequests,
             note: r.note,
             error: r.error,
+          }))}
+        />
+      </section>
+
+      <section aria-labelledby="conv-heading" className="flex flex-col gap-2">
+        <h2 id="conv-heading" className="text-lg font-semibold">
+          Eaches conversions
+        </h2>
+        <p className="text-sm opacity-70">
+          Eaches = units × eaches per unit, by each item&apos;s own SKU (so &ldquo;REMSF99B - AMZ&rdquo; has its own row). A SKU with
+          no row counts as 0 eaches.
+        </p>
+        <ConversionsPanel
+          missing={missingConversions}
+          conversions={conversions.map((c) => ({
+            sku: c.sku,
+            eachesPerUnit: c.eachesPerUnit,
+            note: c.note,
+            updatedBy: c.updatedBy,
+            updatedAt: c.updatedAt.toISOString(),
+          }))}
+        />
+      </section>
+
+      <section aria-labelledby="items-heading" className="flex flex-col gap-2">
+        <h2 id="items-heading" className="text-lg font-semibold">
+          Products
+        </h2>
+        <p className="text-sm opacity-70">
+          Only products appear in the SKU views. Service, shipping, discount and uncategorized items are left out
+          automatically; change any item here, and the sync keeps your choice.
+        </p>
+        <ItemsPanel
+          items={items.map((i) => ({
+            qboId: i.qboId,
+            sku: i.sku,
+            category: i.category,
+            itemType: i.itemType,
+            active: i.active,
+            isProduct: i.isProduct,
+            setByAdmin: i.isProductSetByAdmin,
           }))}
         />
       </section>

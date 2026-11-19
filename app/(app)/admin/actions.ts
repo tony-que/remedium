@@ -114,3 +114,50 @@ export async function syncNowAction(_prev: ActionResult | null, fd: FormData): P
     message: `Sync done (${r.kind}): ${c.invoicesUpserted} invoices and credit memos updated, ${c.invoicesDeleted} marked deleted, ${c.itemsUpserted} items, ${c.customersUpserted} customers.`,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Reference data: product flags and eaches conversions
+// ---------------------------------------------------------------------------
+
+async function runRef(fn: () => Promise<string>): Promise<ActionResult> {
+  const { ReferenceDataError } = await import("@/lib/reference-data");
+  try {
+    const message = await fn();
+    revalidatePath("/admin");
+    revalidatePath("/");
+    return { ok: true, message };
+  } catch (err) {
+    if (err instanceof ReferenceDataError) return { ok: false, message: err.message };
+    throw err;
+  }
+}
+
+export async function setItemProductAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const { email: actor } = await requireAdmin();
+  const { setItemProduct } = await import("@/lib/reference-data");
+  return runRef(async () => {
+    const v = fd.get("value");
+    const value = v === "true" ? true : v === "false" ? false : null;
+    const r = await setItemProduct(actor, String(fd.get("qboId") ?? ""), value);
+    return `${r.sku} ${r.isProduct ? "counts as a product" : "is left out of SKU views"}${value === null ? " (automatic rule)" : ""}.`;
+  });
+}
+
+export async function setConversionAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const { email: actor } = await requireAdmin();
+  const { setConversion } = await import("@/lib/reference-data");
+  return runRef(async () => {
+    const r = await setConversion(actor, String(fd.get("sku") ?? ""), fd.get("eachesPerUnit"));
+    return r.previous === null ? `Added ${r.sku}: ${r.eachesPerUnit} eaches per unit.` : `${r.sku}: ${r.previous} → ${r.eachesPerUnit} eaches per unit.`;
+  });
+}
+
+export async function deleteConversionAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const { email: actor } = await requireAdmin();
+  const { deleteConversion } = await import("@/lib/reference-data");
+  return runRef(async () => {
+    const sku = String(fd.get("sku") ?? "");
+    await deleteConversion(actor, sku);
+    return `Removed the conversion for ${sku}. It now counts as 0 eaches.`;
+  });
+}

@@ -14,7 +14,10 @@ export type AuditAction =
   | "qbo_connect_failed"
   | "qbo_tested"
   | "qbo_disconnected"
-  | "sync_run";
+  | "sync_run"
+  | "item_product_set"
+  | "conversion_set"
+  | "conversion_deleted";
 
 export const AUDIT_RETENTION_DAYS = 90;
 

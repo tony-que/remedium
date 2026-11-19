@@ -4,8 +4,8 @@ A private web app that syncs Remedium Healthcare Products' QuickBooks Online
 invoices into Postgres and shows sales by SKU and by customer. The full build
 spec is in [`SPEC.md`](SPEC.md).
 
-**Status:** build steps 1–5 of 7 (scaffold, database, sign-in, QuickBooks
-connection, sync) are done. The dashboard comes in step 6, deployment in step 7.
+**Status:** build steps 1–6 of 7 (scaffold, database, sign-in, QuickBooks
+connection, sync, dashboard) are done. Deployment is step 7.
 
 ## Stack
 
@@ -33,7 +33,7 @@ ESLint · Vitest. Every dependency is pinned to an exact version.
    database:
 
    ```bash
-   psql -U postgres -c "CREATE ROLE remedium WITH LOGIN PASSWORD 'remedium' CREATEDB;" -c "CREATE DATABASE remedium_dev OWNER remedium;" -c "CREATE DATABASE remedium_test OWNER remedium;"
+   psql -U postgres -c "CREATE ROLE remedium WITH LOGIN PASSWORD 'remedium' CREATEDB;" -c "CREATE DATABASE remedium_dev OWNER remedium;" -c "CREATE DATABASE remedium_test OWNER remedium;" -c "CREATE DATABASE remedium_e2e OWNER remedium;"
    ```
 
 3. Copy the environment template and set the two database URLs:
@@ -44,7 +44,8 @@ ESLint · Vitest. Every dependency is pinned to an exact version.
 
    For the databases above:
    `DATABASE_URL=postgresql://remedium:remedium@localhost:5432/remedium_dev` and
-   `TEST_DATABASE_URL=postgresql://remedium:remedium@localhost:5432/remedium_test`.
+   `TEST_DATABASE_URL=postgresql://remedium:remedium@localhost:5432/remedium_test`
+   (and `E2E_DATABASE_URL=…/remedium_e2e` for the smoke test).
    Also set `AUTH_SECRET` (`openssl rand -base64 32`), `AUTH_URL=http://localhost:3000`
    and `ADMIN_EMAIL` (your work email). To sign in locally before Microsoft
    sign-in is set up, add `AUTH_DEV_LOGIN=true`; see [Sign-in](#sign-in).
@@ -75,6 +76,7 @@ ESLint · Vitest. Every dependency is pinned to an exact version.
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript check with no output |
 | `npm test` | Vitest, once. Applies migrations to `TEST_DATABASE_URL` first; database tests roll back their own writes |
+| `npm run test:e2e` | Playwright smoke test against `next dev` and `E2E_DATABASE_URL` (reset and seeded each run) |
 | `npm run db:migrate` | Create and apply a migration in development, then regenerate the Prisma client |
 | `npm run db:deploy` | Apply migrations in production |
 | `npm run db:seed` | Load the SKU conversions and fake sales data (`-- --no-fake` for conversions only) |
@@ -295,6 +297,44 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://<your app's domain>/api/syn
 - Scripts that import server code need the React server condition, as Next.js
   uses: `node --conditions=react-server --import tsx script.ts`.
 
+## Dashboard
+
+`/` is the whole tool. Every number comes from SQL over the `sales_lines` view
+(`lib/metrics/queries.ts`); the browser only formats and draws.
+
+- **Filters** live in the URL (`from`, `to`, `measure`, `customer`, `sku`,
+  `zero=exclude`, `amazon=separate`), so a link reproduces the view. Presets:
+  Year to date, Last 90 days, Last year, Same period last year. Dates are
+  compared with each invoice's date, and "today" is US Central.
+- **Filter rules:** a customer filter narrows the SKU views, a SKU filter
+  narrows the customer views, and the totals, monthly chart and grid apply
+  both. Click a bar, a table row or a grid heading to filter, and click it
+  again (or the chip's ✕) to clear.
+- **Totals** show Sales $, Units, Eaches, Invoices and Customers, each against
+  the same dates a year earlier (Feb 29 maps to Feb 28).
+- **SKU views** (Top SKUs, Every SKU, the grid) show product items only, and
+  their % of $ is of product dollars. A note gives the non-product dollars
+  left out. Amazon variants roll up under the base SKU unless "Show Amazon
+  variants separately" is on, and † marks a SKU whose units mix cases and packs.
+- **Eaches** = units × each item's own SKU conversion. A banner names any
+  product SKU sold in the range without one.
+- **Exports:** each table, the grid, months, and every line behind the totals
+  (`/api/export/{skus,customers,grid,months,lines}` with the same query
+  string). Text that a spreadsheet would run as a formula is defused.
+- **Admin page** additions: eaches conversions (edit, add, remove, filter to
+  the 26 unconfirmed ones) and a per-item product toggle that the sync keeps.
+
+Charts use one blue series with no legend (each card's title names the
+measure), and the grid uses a one-hue blue scale with the value printed in
+each cell. Gains and losses use reserved green and red, always with ▲/▼ and a
+sign. Light and dark themes follow the device setting, and the layout works
+from 375 px up.
+
+**Speed** (production build, measured in a cloud container): on 3 years of
+data at Remedium's volume (2,340 invoices, 14,040 lines), the server answers in
+about 0.05–0.1 s and a full browser load with charts drawn takes about 0.3 s.
+At 10× that volume, a full load takes about 1 s.
+
 ## Repo layout
 
 ```
@@ -310,9 +350,12 @@ lib/audit.ts   audit log writes and 90-day pruning
 lib/qbo/       QuickBooks config, OAuth, token encryption, connection, API client and JSON mapping
 lib/sync/      sync runs (run.ts) and their database writes (store.ts)
 lib/email.ts   admin alert emails through Resend
-lib/metrics/   SQL queries behind every metric
+lib/metrics/   filters (URL ⇄ state, presets) and the SQL behind every metric
+lib/csv.ts     CSV writing for exports
+lib/reference-data.ts  admin edits to product flags and eaches conversions
+components/dashboard/  filters bar, totals, charts, tables, grid
 prisma/        schema, migrations and seed
-tests/         Vitest unit tests
+tests/         Vitest tests; tests/e2e has the Playwright smoke test
 ```
 
 `lib/generated/` holds the generated Prisma client. It is git-ignored and
