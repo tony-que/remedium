@@ -92,3 +92,25 @@ export async function disconnectQboAction(): Promise<ActionResult> {
       : "Disconnected here, but Intuit couldn't be reached to revoke access. Remove the app in QuickBooks under Settings → Apps if it still shows.",
   };
 }
+
+// ---------------------------------------------------------------------------
+// Sync
+// ---------------------------------------------------------------------------
+
+export async function syncNowAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const { email: actor } = await requireAdmin();
+  const { runSync } = await import("@/lib/sync/run");
+  const mode = fd.get("mode") === "full" ? "full" : "auto";
+  const r = await runSync({ trigger: actor, mode });
+  revalidatePath("/admin");
+  revalidatePath("/");
+  if (r.status === "busy") {
+    return { ok: false, message: `A sync is already running (started ${r.runningSince.toLocaleTimeString("en-US", { timeZone: "America/Chicago" })} CT).` };
+  }
+  if (r.status === "failed") return { ok: false, message: `Sync failed: ${r.error}` };
+  const c = r.counts;
+  return {
+    ok: true,
+    message: `Sync done (${r.kind}): ${c.invoicesUpserted} invoices and credit memos updated, ${c.invoicesDeleted} marked deleted, ${c.itemsUpserted} items, ${c.customersUpserted} customers.`,
+  };
+}

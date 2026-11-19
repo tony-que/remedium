@@ -4,6 +4,8 @@ import { getQboConfig, qboConfigured } from "@/lib/qbo/config";
 import { connectionStatus } from "@/lib/qbo/connection";
 import { AllowList } from "./allow-list";
 import { QboPanel } from "./qbo-panel";
+import { SyncPanel } from "./sync-panel";
+import { prisma } from "@/lib/db";
 
 const QBO_FLASH: Record<string, { ok: boolean; message: string }> = {
   connected: { ok: true, message: "QuickBooks connected." },
@@ -18,7 +20,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const { qbo } = await searchParams;
   const configured = qboConfigured();
   const config = configured ? getQboConfig() : null;
-  const [users, status] = await Promise.all([listAllowedUsers(), connectionStatus(config)]);
+  const [users, status, runs] = await Promise.all([
+    listAllowedUsers(),
+    connectionStatus(config),
+    prisma.syncRun.findMany({ orderBy: { startedAt: "desc" }, take: 20 }),
+  ]);
   const iso = (d?: Date | null) => (d ? d.toISOString() : undefined);
 
   return (
@@ -46,7 +52,32 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             lastRefreshError: status.lastRefreshError,
           }}
         />
-        <p className="text-sm opacity-70">Sync and Refresh now arrive in build step 5.</p>
+      </section>
+
+      <section aria-labelledby="sync-heading" className="flex flex-col gap-2">
+        <h2 id="sync-heading" className="text-lg font-semibold">
+          Sync
+        </h2>
+        <p className="text-sm opacity-70">
+          Runs every night at 2 a.m. Central (3 a.m. during daylight time). Refresh now picks up changes since the last
+          run; Full re-read reloads everything and drops anything deleted in QuickBooks.
+        </p>
+        <SyncPanel
+          connected={status.connected && !status.environmentMismatch}
+          runs={runs.map((r) => ({
+            id: r.id.toString(),
+            kind: r.kind,
+            status: r.status,
+            triggeredBy: r.triggeredBy,
+            startedAt: r.startedAt.toISOString(),
+            finishedAt: r.finishedAt?.toISOString() ?? null,
+            invoicesUpserted: r.invoicesUpserted,
+            invoicesDeleted: r.invoicesDeleted,
+            apiRequests: r.apiRequests,
+            note: r.note,
+            error: r.error,
+          }))}
+        />
       </section>
 
       <section aria-labelledby="users-heading" className="flex flex-col gap-3">

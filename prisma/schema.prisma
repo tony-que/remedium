@@ -159,7 +159,13 @@ model SyncRun {
   invoicesDeleted   Int        @default(0) @map("invoices_deleted")
   itemsUpserted     Int        @default(0) @map("items_upserted")
   customersUpserted Int        @default(0) @map("customers_upserted")
+  /// QuickBooks API requests made, including retries.
+  apiRequests       Int        @default(0) @map("api_requests")
+  /// How the run went, e.g. "CDC since …" or "full re-read: CDC failed (…)".
+  note              String?
   error             String?
+  /// True once the failure alert email for this run has been handled.
+  alerted           Boolean    @default(false)
 
   @@index([startedAt])
   @@map("sync_runs")

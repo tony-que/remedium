@@ -4,8 +4,8 @@ A private web app that syncs Remedium Healthcare Products' QuickBooks Online
 invoices into Postgres and shows sales by SKU and by customer. The full build
 spec is in [`SPEC.md`](SPEC.md).
 
-**Status:** build steps 1–4 of 7 (scaffold, database, sign-in, QuickBooks
-connection) are done. The sync and dashboard come in steps 5–6.
+**Status:** build steps 1–5 of 7 (scaffold, database, sign-in, QuickBooks
+connection, sync) are done. The dashboard comes in step 6, deployment in step 7.
 
 ## Stack
 
@@ -235,6 +235,66 @@ Behind an HTTPS proxy (some cloud dev containers), start Node with
 `NODE_USE_ENV_PROXY=1`. Node's built-in `fetch` ignores `HTTPS_PROXY`
 otherwise.
 
+## Sync
+
+`lib/sync/run.ts` is the only code that reads invoices from QuickBooks. The
+dashboard reads Postgres only.
+
+| Run | When | What it does |
+| --- | --- | --- |
+| **Incremental** | Nightly, and **Refresh now** on `/admin` | Change Data Capture since the last successful run's start, less an hour of overlap: changed invoices, credit memos, items and customers, plus deletions |
+| **Full** | First run, **Full re-read** on `/admin`, and automatically when needed | Re-reads everything since `SYNC_START_DATE` (default 2024-01-01), then marks documents QuickBooks no longer has as deleted |
+
+A run switches to **full** by itself when the last success is over 30 days
+old (CDC's limit), when CDC returns its 1,000-record cap for an entity, or when
+CDC fails. A full re-read is used as the fallback instead of a plain "changed
+since" query because such a query can't see deletions.
+
+Rules every run follows:
+
+- **Refreshes the token first.** This proves the connection works and keeps
+  the 100-day refresh window rolling.
+- **Replaces each changed document's lines** in the same transaction as the
+  document, so edits never double count. An older copy that arrives after a
+  newer one is ignored.
+- **Fetches inactive items and customers too.** QuickBooks queries return only
+  active ones unless asked, and old invoices point at retired SKUs.
+- **Checks completeness before deleting.** A full re-read compares what it
+  fetched with QuickBooks' own `COUNT(*)`, and fails without marking anything
+  deleted if they differ.
+- **Keeps any `is_product` flag the admin set by hand.**
+- **Retries** HTTP 429 and 5xx with 1, 2, 4 and 8 second waits (5 tries,
+  honoring `Retry-After`), and refreshes the token once on a 401.
+- **One run at a time.** A unique index allows one `sync_runs` row with
+  `status = 'running'`. A run still "running" after 15 minutes is marked failed
+  (abandoned), so a crash can't block syncing forever.
+- **Logs** every run in `sync_runs` (kind, trigger, counts, API requests, note,
+  error). `/admin` shows the last 20.
+- **Alerts** the admins by email at most once per streak of failures: on the
+  first failure if it's a token problem (reconnecting is the only fix),
+  otherwise on the second failure in a row. This needs `AUTH_RESEND_KEY` and
+  `EMAIL_FROM`; until those are set, the alert is written to the server log.
+- The nightly run also deletes audit-log entries older than 90 days.
+
+### Schedule
+
+`vercel.json` calls `/api/sync` daily at 08:00 UTC: 2 a.m. Central in winter,
+3 a.m. during daylight saving time. The route needs
+`Authorization: Bearer $CRON_SECRET`, which Vercel Cron sends when
+`CRON_SECRET` is set in the project, and refuses everything else with 401. To
+run it by hand:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://<your app's domain>/api/sync
+```
+
+### Development notes
+
+- After a schema change, restart `npm run dev`. `lib/db.ts` keeps one Prisma
+  client across hot reloads, so a running dev server keeps the old client.
+- Scripts that import server code need the React server condition, as Next.js
+  uses: `node --conditions=react-server --import tsx script.ts`.
+
 ## Repo layout
 
 ```
@@ -247,7 +307,9 @@ lib/auth.ts    Auth.js setup (Microsoft, magic link, dev login)
 lib/access.ts  per-request allow-list checks for pages, actions and API routes
 lib/allowlist.ts    allow-list changes and their safety rules
 lib/audit.ts   audit log writes and 90-day pruning
-lib/qbo/       QuickBooks config, OAuth, token encryption and connection (sync in step 5)
+lib/qbo/       QuickBooks config, OAuth, token encryption, connection, API client and JSON mapping
+lib/sync/      sync runs (run.ts) and their database writes (store.ts)
+lib/email.ts   admin alert emails through Resend
 lib/metrics/   SQL queries behind every metric
 prisma/        schema, migrations and seed
 tests/         Vitest unit tests
