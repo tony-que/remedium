@@ -1,0 +1,10 @@
+// Prisma schema. The data-model tables from SPEC.md are added in build step 2.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
