@@ -70,7 +70,7 @@ export async function totalsWithChange(f: Filters): Promise<TotalsWithChange> {
 // ---------------------------------------------------------------------------
 
 export interface PeriodRow {
-  /** First day of the month, or the Monday that starts the week (YYYY-MM-DD). */
+  /** First day of the month, or the Sunday that starts the week (YYYY-MM-DD). */
   period: string;
   sales: number;
   units: number;
@@ -78,21 +78,27 @@ export interface PeriodRow {
 }
 
 /**
- * Totals per calendar month, or per week starting Monday, by invoice date
+ * Totals per calendar month, or per week (Sunday through Saturday), by invoice date
  * (TxnDate is already the company's date, US Central). Every period touching
  * the range appears, with zeros where there were no sales, so the time axis
  * never skips. The first and last weeks can be partial: only dates inside
  * the range count.
  */
 export async function byPeriod(f: Filters, interval: Interval = f.interval): Promise<PeriodRow[]> {
-  const unit = Prisma.raw(interval === "week" ? "'week'" : "'month'");
+  // The period a date falls in. Postgres weeks start Monday, so for
+  // Sunday-start weeks shift the date forward a day, truncate, and step back:
+  // a Sunday lands on itself, a Saturday on the Sunday before.
+  const periodOf = (d: Prisma.Sql) =>
+    interval === "week"
+      ? Prisma.sql`(date_trunc('week', ${d} + 1)::date - 1)`
+      : Prisma.sql`date_trunc('month', ${d})::date`;
   const step = Prisma.raw(interval === "week" ? "interval '1 week'" : "interval '1 month'");
   const rows = await prisma.$queryRaw<{ period: Date; sales: Prisma.Decimal | null; units: Prisma.Decimal | null; eaches: Prisma.Decimal | null }[]>`
     WITH periods AS (
-      SELECT generate_series(date_trunc(${unit}, ${f.from}::date), date_trunc(${unit}, ${f.to}::date), ${step})::date AS period
+      SELECT generate_series(${periodOf(Prisma.sql`${f.from}::date`)}, ${periodOf(Prisma.sql`${f.to}::date`)}, ${step})::date AS period
     ),
     sums AS (
-      SELECT date_trunc(${unit}, txn_date)::date AS period, sum(amount) sales, sum(qty) units, sum(eaches) eaches
+      SELECT ${periodOf(Prisma.sql`txn_date`)} AS period, sum(amount) sales, sum(qty) units, sum(eaches) eaches
       FROM sales_lines WHERE ${where(f, { customer: true, sku: true })}
       GROUP BY 1
     )

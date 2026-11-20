@@ -22,7 +22,7 @@ function addDays(ymd: string, n: number) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Sales over time, one bar per month or per week (weeks start Monday). */
+/** Sales over time, one bar per month or per week (Sunday to Saturday). */
 export function PeriodChart({
   rows,
   measure,

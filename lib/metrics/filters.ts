@@ -22,7 +22,7 @@ export interface Filters {
   excludeZero: boolean;
   /** Show "REMSF99B - AMZ" separately instead of under REMSF99B. */
   amazonSeparate: boolean;
-  /** Bars in the over-time chart: calendar months, or weeks starting Monday. */
+  /** Bars in the over-time chart: calendar months, or weeks starting Sunday. */
   interval: Interval;
 }
 

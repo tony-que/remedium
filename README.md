@@ -334,8 +334,8 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://<your app's domain>/api/syn
   narrows the customer views, and the totals, monthly chart and grid apply
   both. Click a bar, a table row or a grid heading to filter, and click it
   again (or the chip's ✕) to clear.
-- **Over time:** the chart shows months by default, or weeks starting Monday
-  with **By week**. Every month or week touching the range appears, zeros
+- **Over time:** the chart shows months by default, or weeks (Sunday to
+  Saturday, labeled by the Sunday) with **By week**. Every month or week touching the range appears, zeros
   included. A first or last week only partly inside the range counts only
   those dates, and its tooltip says so.
 - **Totals** show Sales $, Cases, Eaches, Invoices and Customers, each against

@@ -68,7 +68,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
           <Card
             title={`${m} by ${f.interval}`}
-            subtitle={f.interval === "week" ? "Weeks start Monday · hover a week for dollars and cases" : "Hover a month for dollars and cases"}
+            subtitle={f.interval === "week" ? "Weeks run Sunday to Saturday · hover a week for dollars and cases" : "Hover a month for dollars and cases"}
           >
             <PeriodChart rows={d.periods} measure={f.measure} interval={f.interval} from={f.from} to={f.to} />
             <p className="text-right text-xs text-muted">
