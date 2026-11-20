@@ -93,6 +93,34 @@ export async function inventoryRows(today: string): Promise<InventoryRow[]> {
   });
 }
 
+export interface OpenPo {
+  sku: string;
+  line: ProductLine;
+  docNumber: string | null;
+  vendor: string | null;
+  /** YYYY-MM-DD */
+  txnDate: string;
+  expectedDate: string | null;
+  ordered: number;
+  remaining: number;
+}
+
+/** Open purchase order lines still to receive, soonest expected first. */
+export async function openPurchaseOrders(): Promise<OpenPo[]> {
+  const rows = await prisma.openPoLine.findMany({ orderBy: [{ expectedDate: { sort: "asc", nulls: "last" } }, { txnDate: "asc" }, { sku: "asc" }] });
+  const d = (x: Date | null) => (x ? x.toISOString().slice(0, 10) : null);
+  return rows.map((r) => ({
+    sku: r.sku,
+    line: productLineOf(r.sku),
+    docNumber: r.docNumber,
+    vendor: r.vendor,
+    txnDate: d(r.txnDate)!,
+    expectedDate: d(r.expectedDate),
+    ordered: Number(r.qtyOrdered),
+    remaining: Number(r.qtyRemaining),
+  }));
+}
+
 export async function lastInventorySync() {
   const [success, latest] = await Promise.all([
     prisma.inventorySyncRun.findFirst({ where: { status: "succeeded" }, orderBy: { startedAt: "desc" } }),

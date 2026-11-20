@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireViewer } from "@/lib/access";
 import { PRODUCT_LINE_LABELS, PRODUCT_LINES, todayCentral, type ProductLine } from "@/lib/metrics/filters";
-import { inventoryRows, lastInventorySync, type InventoryRow } from "@/lib/inventory/queries";
+import { inventoryRows, lastInventorySync, openPurchaseOrders, type InventoryRow } from "@/lib/inventory/queries";
 import { addDaysYmd, FLOOR_MONTHS, LEAD_TIME_DAYS, REORDER_MONTHS, STATUS_LABEL, type Status } from "@/lib/inventory/plan";
 import { compactMoney, dayLabel, money, qty } from "@/components/format";
 
@@ -67,7 +67,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   await requireViewer();
   const f = parse(await searchParams);
   const today = todayCentral();
-  const [all, sync] = await Promise.all([inventoryRows(today), lastInventorySync()]);
+  const [all, sync, allPos] = await Promise.all([inventoryRows(today), lastInventorySync(), openPurchaseOrders()]);
 
   // Quantities are kept in cases; eaches multiplies by each SKU's conversion.
   const show = (r: InventoryRow, cases: number) =>
@@ -79,6 +79,12 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     .filter((r) => r.status === "below_floor" || r.status === "order_now" || r.status === "order_soon")
     .sort((a, b) => (a.orderInDays ?? 0) - (b.orderInDays ?? 0) || (a.monthsOnHand ?? 0) - (b.monthsOnHand ?? 0) || a.sku.localeCompare(b.sku));
   const byMonths = [...rows].sort((a, b) => (a.monthsOnHand ?? Infinity) - (b.monthsOnHand ?? Infinity) || a.sku.localeCompare(b.sku));
+  const bySku = new Map(all.map((r) => [r.sku, r]));
+  const pos = allPos.filter((p) => !f.line || p.line === f.line);
+  const showPo = (sku: string, cases: number) => {
+    const r = bySku.get(sku);
+    return r ? show(r, cases) : f.unit === "cases" ? qty(cases) : "—";
+  };
   const totalValue = rows.reduce((s, r) => s + (r.value ?? 0), 0);
   const noCost = rows.filter((r) => r.value === null && r.onHand > 0).length;
   const toOrder = rows.filter((r) => r.status === "below_floor" || r.status === "order_now").length;
@@ -191,6 +197,44 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             )}
           </Card>
 
+          <Card
+            title="Open purchase orders"
+            subtitle={`${pos.length} line${pos.length === 1 ? "" : "s"} still to receive, counted in "On open POs" · soonest expected first · in ${unitLabel}`}
+          >
+            {pos.length === 0 ? (
+              <p className="text-sm text-secondary">No open QuickBooks purchase orders with anything left to receive.</p>
+            ) : (
+              <div className="max-h-[28rem] overflow-auto">
+                <table className="w-full min-w-[48rem] text-left text-sm">
+                  <thead className="sticky top-0 bg-surface text-secondary">
+                    <tr className="border-b border-line">
+                      <th className="px-2 py-1.5 font-medium">PO</th>
+                      <th className="px-2 py-1.5 font-medium">Vendor</th>
+                      <th className="px-2 py-1.5 font-medium">SKU</th>
+                      <th className="px-2 py-1.5 font-medium">PO date</th>
+                      <th className="px-2 py-1.5 font-medium">Expected</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Ordered</th>
+                      <th className="px-2 py-1.5 text-right font-medium">To receive</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pos.map((p, i) => (
+                      <tr key={`${p.docNumber}-${p.sku}-${i}`} className="border-b border-line last:border-0">
+                        <td className="px-2 py-1.5 font-medium">{p.docNumber ?? "—"}</td>
+                        <td className="px-2 py-1.5">{p.vendor ?? "—"}</td>
+                        <td className="px-2 py-1.5">{p.sku}</td>
+                        <td className="whitespace-nowrap px-2 py-1.5">{dayLabel(p.txnDate, true)}</td>
+                        <td className="whitespace-nowrap px-2 py-1.5">{p.expectedDate ? dayLabel(p.expectedDate, true) : "—"}</td>
+                        <td className="px-2 py-1.5 text-right tabular">{showPo(p.sku, p.ordered)}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold tabular">{showPo(p.sku, p.remaining)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
           <Card title="Inventory value by line" subtitle="On hand (available, reserved and held) × QuickBooks purchase cost">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -263,7 +307,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             <div className="mt-2 flex flex-col gap-2">
               <p>
                 Stock comes from QuickBooks: <em>available</em> is quantity on hand less what&apos;s on open sales orders (<em>reserved</em>), and{" "}
-                <em>on open POs</em> is ordered on QuickBooks purchase orders and not yet received. Only items that track quantity on hand appear. Cost is
+                <em>on open POs</em> is what&apos;s still to receive on open QuickBooks purchase orders: each line&apos;s quantity less what&apos;s been billed against it. Closed POs don&apos;t count. Only items that track quantity on hand appear. Cost is
                 each item&apos;s purchase cost in QuickBooks.
               </p>
               <p>

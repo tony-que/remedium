@@ -155,7 +155,7 @@ model InventoryLevel {
   qtyReserved      Decimal   @map("qty_reserved") @db.Decimal(14, 2)
   /// Not tracked in QuickBooks; always 0.
   qtyHeld          Decimal   @map("qty_held") @db.Decimal(14, 2)
-  /// QtyOnPurchaseOrder: ordered and not yet received.
+  /// Still to receive on open QuickBooks purchase orders (open_po_lines).
   qtyIncoming      Decimal   @map("qty_incoming") @db.Decimal(14, 2)
   /// Not tracked in QuickBooks; always 0.
   qtyBackordered   Decimal   @map("qty_backordered") @db.Decimal(14, 2)
@@ -165,6 +165,27 @@ model InventoryLevel {
   syncedAt         DateTime  @map("synced_at") @db.Timestamptz(3)
 
   @@map("inventory_levels")
+}
+
+/// Lines of open QuickBooks purchase orders still to be received, replaced on
+/// every inventory sync. Quantities are in QuickBooks units (cases).
+model OpenPoLine {
+  poQboId      String    @map("po_qbo_id")
+  lineId       String    @map("line_id")
+  sku          String
+  itemQboId    String    @map("item_qbo_id")
+  docNumber    String?   @map("doc_number")
+  vendor       String?
+  txnDate      DateTime  @map("txn_date") @db.Date
+  /// The PO's due date (or ship date), when it has one.
+  expectedDate DateTime? @map("expected_date") @db.Date
+  qtyOrdered   Decimal   @map("qty_ordered") @db.Decimal(14, 2)
+  qtyRemaining Decimal   @map("qty_remaining") @db.Decimal(14, 2)
+  syncedAt     DateTime  @map("synced_at") @db.Timestamptz(3)
+
+  @@id([poQboId, lineId])
+  @@index([sku])
+  @@map("open_po_lines")
 }
 
 /// One row per inventory sync. A partial unique index (in the migration)
