@@ -115,7 +115,12 @@ describe("mapItem / mapCustomer", () => {
       isProduct: true,
       itemType: "Inventory",
       active: false,
+      purchaseCost: null,
     });
+  });
+
+  it("keeps the item's purchase cost for inventory value", () => {
+    expect(mapItem({ Id: "23", Name: "REMSF99B", FullyQualifiedName: "Wound Care:REMSF99B", Type: "Inventory", PurchaseCost: 64.25 }).purchaseCost).toBe("64.25");
   });
 
   it("names customers by DisplayName", () => {

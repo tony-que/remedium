@@ -57,6 +57,9 @@ paste them into chat, email or the repo.
 | `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET` | Development keys (stage 1), then Production keys | developer.intuit.com → your app → Keys & credentials |
 | `QBO_REDIRECT_URI` | `<APP>/api/qbo/callback` | must match Intuit's list exactly |
 | `AUTH_MICROSOFT_ENTRA_ID_ID`, `AUTH_MICROSOFT_ENTRA_ID_SECRET` | from the Entra app registration | section 5 |
+| `ORDERWERKS_API_KEY`, `ORDERWERKS_API_SECRET` | from Orderwerks → **Business Settings** → API keys (the secret is shown once) | Orderwerks, for the Inventory dashboard |
+| `ORDERWERKS_QTY_UNIT` | `cases` (default) or `eaches` | whichever unit Orderwerks counts stock in |
+| `ORDERWERKS_CATALOG_GUIDS` | optional, comma-separated | leave blank to read every catalog |
 | `AUTH_MICROSOFT_ENTRA_ID_ALLOWED_TENANTS` | `929e6f0f-0091-439a-a7e7-8d4e530b64d7,5500e785-513f-4ff9-b917-93a0c7e1a840` | remedium-usa.com, stairwayventures.com |
 | `AUTH_RESEND_KEY`, `EMAIL_FROM` | optional | Resend |
 

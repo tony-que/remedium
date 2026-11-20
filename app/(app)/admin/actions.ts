@@ -161,3 +161,44 @@ export async function deleteConversionAction(_prev: ActionResult | null, fd: For
     return `Removed the conversion for ${sku}. It now counts as 0 eaches.`;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Inventory: Orderwerks sync and monthly usage
+// ---------------------------------------------------------------------------
+
+export async function syncInventoryAction(): Promise<ActionResult> {
+  const { email: actor } = await requireAdmin();
+  const { orderwerksConfigured } = await import("@/lib/orderwerks/client");
+  if (!orderwerksConfigured()) {
+    return { ok: false, message: "Orderwerks isn't connected yet: set ORDERWERKS_API_KEY and ORDERWERKS_API_SECRET in Vercel, then redeploy." };
+  }
+  const { runInventorySync } = await import("@/lib/inventory/sync");
+  const r = await runInventorySync({ trigger: actor });
+  revalidatePath("/admin");
+  revalidatePath("/inventory");
+  if (r.status === "busy") return { ok: false, message: "An inventory sync is already running." };
+  if (r.status === "failed") return { ok: false, message: `Inventory sync failed: ${r.error}` };
+  return { ok: true, message: `Inventory updated: ${r.skus} SKUs from Orderwerks${r.note ? ` (${r.note})` : ""}.` };
+}
+
+/** Max upload size for the usage file: far more than a few hundred SKUs need. */
+const MAX_USAGE_BYTES = 512 * 1024;
+
+export async function uploadUsageAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const { email: actor } = await requireAdmin();
+  const file = fd.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, message: "Choose a CSV file to upload." };
+  if (file.size > MAX_USAGE_BYTES) return { ok: false, message: "That file is too large for a usage table (over 512 KB)." };
+  const { parseUsageCsv } = await import("@/lib/usage-csv");
+  let rows;
+  try {
+    rows = parseUsageCsv(await file.text());
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "That file couldn't be read as CSV." };
+  }
+  const { replaceUsage } = await import("@/lib/usage");
+  const r = await replaceUsage(actor, rows);
+  revalidatePath("/admin");
+  revalidatePath("/inventory");
+  return { ok: true, message: `Monthly usage replaced: ${r.count} SKUs.${r.removed ? ` ${r.removed} SKUs from the old table are no longer listed.` : ""}` };
+}

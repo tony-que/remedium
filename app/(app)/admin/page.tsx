@@ -6,6 +6,8 @@ import { AllowList } from "./allow-list";
 import { QboPanel } from "./qbo-panel";
 import { SyncPanel } from "./sync-panel";
 import { ConversionsPanel, ItemsPanel } from "./reference-panels";
+import { InventorySyncPanel, UsagePanel } from "./inventory-panel";
+import { orderwerksConfigured } from "@/lib/orderwerks/client";
 import { productSkusWithoutConversion } from "@/lib/reference-data";
 import { prisma } from "@/lib/db";
 
@@ -38,6 +40,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     prisma.item.findMany({ where: { itemType: { not: "Category" } }, orderBy: [{ isProduct: "desc" }, { sku: "asc" }] }),
     prisma.skuConversion.findMany({ orderBy: { sku: "asc" } }),
     productSkusWithoutConversion(),
+  ]);
+  const [inventoryRuns, usage] = await Promise.all([
+    prisma.inventorySyncRun.findMany({ orderBy: { startedAt: "desc" }, take: 10 }),
+    prisma.skuUsage.findMany({ orderBy: { sku: "asc" } }),
   ]);
   const iso = (d?: Date | null) => (d ? d.toISOString() : undefined);
 
@@ -94,6 +100,38 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         />
       </section>
 
+      <section aria-labelledby="inv-heading" className="flex flex-col gap-2">
+        <h2 id="inv-heading" className="text-lg font-semibold">
+          Inventory (Orderwerks)
+        </h2>
+        <p className="text-sm opacity-70">Stock levels refresh from Orderwerks every hour. Refresh inventory now pulls them immediately.</p>
+        <InventorySyncPanel
+          configured={orderwerksConfigured()}
+          runs={inventoryRuns.map((r) => ({
+            id: r.id.toString(),
+            status: r.status,
+            triggeredBy: r.triggeredBy,
+            startedAt: r.startedAt.toISOString(),
+            finishedAt: r.finishedAt?.toISOString() ?? null,
+            skus: r.skus,
+            note: r.note,
+            error: r.error,
+          }))}
+        />
+      </section>
+
+      <section aria-labelledby="usage-heading" className="flex flex-col gap-2">
+        <h2 id="usage-heading" className="text-lg font-semibold">
+          Monthly usage
+        </h2>
+        <p className="text-sm opacity-70">
+          Your expected usage per SKU, in cases per month. Months of supply uses the greater of this and the last 3 full
+          months&apos; average sales. Upload a CSV with the columns <code>sku</code> and <code>monthly_usage</code>; it
+          replaces the whole table.
+        </p>
+        <UsagePanel usage={usage.map((u) => ({ sku: u.sku, monthlyUnits: Number(u.monthlyUnits), updatedBy: u.updatedBy, updatedAt: u.updatedAt.toISOString() }))} />
+      </section>
+
       <section aria-labelledby="conv-heading" className="flex flex-col gap-2">
         <h2 id="conv-heading" className="text-lg font-semibold">
           Eaches conversions
@@ -119,8 +157,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           Products
         </h2>
         <p className="text-sm opacity-70">
-          Only products appear in the SKU views. Service, shipping, discount and uncategorized items are left out
-          automatically; change any item here, and the sync keeps your choice.
+          Only products appear in the SKU views. Profit share services, shipping, R&amp;D and discount items are left
+          out automatically; change any item here, and the sync keeps your choice.
         </p>
         <ItemsPanel
           items={items.map((i) => ({
