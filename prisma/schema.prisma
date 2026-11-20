@@ -140,25 +140,26 @@ model SkuUsage {
 }
 
 // ---------------------------------------------------------------------------
-// Inventory from Orderwerks (the 3PL)
+// Inventory, from QuickBooks quantity on hand
 // ---------------------------------------------------------------------------
 
-/// Stock for one SKU as Orderwerks last reported it. The whole table is
-/// replaced on every inventory sync.
+/// Stock for one SKU as QuickBooks last reported it, in QuickBooks units
+/// (cases). The whole table is replaced on every inventory sync.
 model InventoryLevel {
   sku              String    @id
-  catalogItemGuid  String    @map("catalog_item_guid")
+  itemQboId        String    @map("item_qbo_id")
   name             String?
-  /// qty_on_hand: what can be sold now (reserved and held stock excluded).
+  /// QtyOnHand minus QtyOnSalesOrder: what can be sold now.
   qtyAvailable     Decimal   @map("qty_available") @db.Decimal(14, 2)
-  /// reserved_qty_on_hand: on the shelf, set aside for open orders.
+  /// QtyOnSalesOrder: on hand but committed to open sales orders.
   qtyReserved      Decimal   @map("qty_reserved") @db.Decimal(14, 2)
-  /// qty_held_for_backorders
+  /// Not tracked in QuickBooks; always 0.
   qtyHeld          Decimal   @map("qty_held") @db.Decimal(14, 2)
-  /// qty_incoming: on open purchase orders.
+  /// QtyOnPurchaseOrder: ordered and not yet received.
   qtyIncoming      Decimal   @map("qty_incoming") @db.Decimal(14, 2)
+  /// Not tracked in QuickBooks; always 0.
   qtyBackordered   Decimal   @map("qty_backordered") @db.Decimal(14, 2)
-  /// Orderwerks' own min_qty_on_hand, kept for reference.
+  /// QuickBooks ReorderPoint, kept for reference.
   minQtyOnHand     Decimal?  @map("min_qty_on_hand") @db.Decimal(14, 2)
   sourceUpdatedAt  DateTime? @map("source_updated_at") @db.Timestamptz(3)
   syncedAt         DateTime  @map("synced_at") @db.Timestamptz(3)

@@ -7,7 +7,6 @@ import { QboPanel } from "./qbo-panel";
 import { SyncPanel } from "./sync-panel";
 import { ConversionsPanel, ItemsPanel } from "./reference-panels";
 import { InventorySyncPanel, UsagePanel } from "./inventory-panel";
-import { orderwerksConfigured } from "@/lib/orderwerks/client";
 import { productSkusWithoutConversion } from "@/lib/reference-data";
 import { prisma } from "@/lib/db";
 
@@ -102,11 +101,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
       <section aria-labelledby="inv-heading" className="flex flex-col gap-2">
         <h2 id="inv-heading" className="text-lg font-semibold">
-          Inventory (Orderwerks)
+          Inventory
         </h2>
-        <p className="text-sm opacity-70">Stock levels refresh from Orderwerks every hour. Refresh inventory now pulls them immediately.</p>
+        <p className="text-sm opacity-70">
+          Stock levels refresh from QuickBooks quantity on hand every hour. Refresh inventory now pulls them immediately.
+        </p>
         <InventorySyncPanel
-          configured={orderwerksConfigured()}
+          configured={status.connected && !status.environmentMismatch}
           runs={inventoryRuns.map((r) => ({
             id: r.id.toString(),
             status: r.status,

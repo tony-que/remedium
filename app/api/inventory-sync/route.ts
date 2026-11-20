@@ -1,9 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { orderwerksConfigured } from "@/lib/orderwerks/client";
+import { qboConfigured } from "@/lib/qbo/config";
 import { runInventorySync } from "@/lib/inventory/sync";
 
-// Hourly inventory sync from Orderwerks, called by the host's scheduler
+// Hourly inventory sync from QuickBooks quantity on hand, called by the host's scheduler
 // (vercel.json) with "Authorization: Bearer <CRON_SECRET>". Admins use
 // Refresh inventory on /admin instead.
 
@@ -22,8 +22,8 @@ export async function GET(req: Request) {
   if (!authorized(req.headers.get("authorization"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  // Until the Orderwerks keys are set there is nothing to do, and that isn't a failure.
-  if (!orderwerksConfigured()) return NextResponse.json({ status: "skipped", reason: "Orderwerks is not configured" });
+  // Without QuickBooks keys there is nothing to do, and that isn't a failure.
+  if (!qboConfigured()) return NextResponse.json({ status: "skipped", reason: "QuickBooks is not configured" });
   const r = await runInventorySync({ trigger: "cron" });
   if (r.status === "busy") return NextResponse.json({ status: "busy", runningSince: r.runningSince }, { status: 409 });
   return NextResponse.json(

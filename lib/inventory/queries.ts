@@ -5,16 +5,10 @@ import { productLineOf } from "@/lib/items";
 import type { ProductLine } from "@/lib/metrics/filters";
 import { lastThreeFullMonths, plan, type Plan } from "./plan";
 
-// Inventory rows for the dashboard: Orderwerks stock joined to QuickBooks
-// items (cost, category, product flag), eaches conversions, the owner's
-// monthly usage, and the last 3 full months of invoiced units.
-
-/** What unit Orderwerks quantities are in. QuickBooks units are cases. */
-export type OrderwerksUnit = "cases" | "eaches";
-
-export function orderwerksUnit(env = process.env.ORDERWERKS_QTY_UNIT): OrderwerksUnit {
-  return env?.trim().toLowerCase() === "eaches" ? "eaches" : "cases";
-}
+// Inventory rows for the dashboard: QuickBooks stock (quantity on hand, on
+// purchase orders, on sales orders) joined to items (cost, category, product
+// flag), eaches conversions, the owner's monthly usage, and the last 3 full
+// months of invoiced units. Every quantity is in QuickBooks units (cases).
 
 export interface InventoryRow extends Plan {
   sku: string;
@@ -30,14 +24,12 @@ export interface InventoryRow extends Plan {
   eachesPerUnit: number | null;
   unitCost: number | null;
   providedUsage: number | null;
-  /** Orderwerks counts eaches but this SKU has no eaches conversion, so it can't be shown in cases. */
-  missingConversion: boolean;
 }
 
 const num = (d: Prisma.Decimal | number | string | null | undefined) => (d === null || d === undefined ? 0 : Number(d));
 const numOrNull = (d: Prisma.Decimal | number | string | null | undefined) => (d === null || d === undefined ? null : Number(d));
 
-export async function inventoryRows(today: string, unit: OrderwerksUnit = orderwerksUnit()): Promise<InventoryRow[]> {
+export async function inventoryRows(today: string): Promise<InventoryRow[]> {
   const { from, to } = lastThreeFullMonths(today);
   const rows = await prisma.$queryRaw<
     {
@@ -76,13 +68,10 @@ export async function inventoryRows(today: string, unit: OrderwerksUnit = orderw
 
   return rows.map((r) => {
     const epu = r.eaches_per_unit && r.eaches_per_unit > 0 ? r.eaches_per_unit : null;
-    const missingConversion = unit === "eaches" && epu === null;
-    // Everything below is in cases. When Orderwerks counts eaches, divide by the conversion.
-    const toCases = (q: Prisma.Decimal) => (unit === "eaches" ? (epu ? num(q) / epu : 0) : num(q));
-    const available = toCases(r.qty_available);
-    const reserved = toCases(r.qty_reserved);
-    const held = toCases(r.qty_held);
-    const incoming = toCases(r.qty_incoming);
+    const available = num(r.qty_available);
+    const reserved = num(r.qty_reserved);
+    const held = num(r.qty_held);
+    const incoming = num(r.qty_incoming);
     const unitCost = numOrNull(r.purchase_cost);
     const providedUsage = numOrNull(r.monthly_units);
     const p = plan({ available, reserved, held, incoming, providedUsage, soldLast3Months: num(r.sold), unitCost });
@@ -96,11 +85,10 @@ export async function inventoryRows(today: string, unit: OrderwerksUnit = orderw
       available,
       reserved,
       incoming,
-      backordered: toCases(r.qty_backordered),
+      backordered: num(r.qty_backordered),
       eachesPerUnit: epu,
       unitCost,
       providedUsage,
-      missingConversion,
     };
   });
 }

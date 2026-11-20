@@ -163,22 +163,18 @@ export async function deleteConversionAction(_prev: ActionResult | null, fd: For
 }
 
 // ---------------------------------------------------------------------------
-// Inventory: Orderwerks sync and monthly usage
+// Inventory: QuickBooks stock sync and monthly usage
 // ---------------------------------------------------------------------------
 
 export async function syncInventoryAction(): Promise<ActionResult> {
   const { email: actor } = await requireAdmin();
-  const { orderwerksConfigured } = await import("@/lib/orderwerks/client");
-  if (!orderwerksConfigured()) {
-    return { ok: false, message: "Orderwerks isn't connected yet: set ORDERWERKS_API_KEY and ORDERWERKS_API_SECRET in Vercel, then redeploy." };
-  }
   const { runInventorySync } = await import("@/lib/inventory/sync");
   const r = await runInventorySync({ trigger: actor });
   revalidatePath("/admin");
   revalidatePath("/inventory");
   if (r.status === "busy") return { ok: false, message: "An inventory sync is already running." };
   if (r.status === "failed") return { ok: false, message: `Inventory sync failed: ${r.error}` };
-  return { ok: true, message: `Inventory updated: ${r.skus} SKUs from Orderwerks${r.note ? ` (${r.note})` : ""}.` };
+  return { ok: true, message: `Inventory updated: ${r.skus} stock-tracked SKUs from QuickBooks${r.note ? ` (${r.note})` : ""}.` };
 }
 
 /** Max upload size for the usage file: far more than a few hundred SKUs need. */
