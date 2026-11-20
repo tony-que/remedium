@@ -145,8 +145,8 @@ edits move them slightly.
 | Check | How |
 | --- | --- |
 | YTD Sales $ ≈ $7.81M, 776 invoices, 46 customers (prototype excluded credit memos) | Dashboard totals. They include credit memos (as decided), so compare after subtracting the credit memo total from the **lines** CSV (rows with `type` = `credit_memo`) |
-| REMSF99B top SKU, 22,170 units, $3,569,612.00, ≈ 47.4% (Amazon variants separate) | Tick **Show Amazon variants separately**; same credit-memo caveat |
-| Credit memo for 2 cases of REMSF99B lowers its units by 2, its $ by the memo, invoice count unchanged | Already verified in the sandbox |
+| REMSF99B top SKU, 22,170 cases, $3,569,612.00, ≈ 47.4% (Amazon variants separate) | Tick **Show Amazon variants separately**; same credit-memo caveat |
+| Credit memo for 2 cases of REMSF99B lowers its cases by 2, its $ by the memo, invoice count unchanged | Already verified in the sandbox |
 | YTD eaches ≈ 2,459,403; REMSF99B 554,250 (22,170 × 25) | Eaches measure. Depends on the 26 unconfirmed conversions |
 | Lakeland Supplychain RDC top customer, $4,006,008.01 (≈ 51.3%), 112 invoices | Every customer table |
 | Clicking a customer filters the SKU views and vice versa; totals match a hand sum of the flat CSV | Verified on sandbox data; repeat on real data |

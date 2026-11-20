@@ -19,7 +19,7 @@ export async function setItemProduct(actor: string, qboId: string, value: boolea
 
 export function parseEaches(raw: unknown): number {
   const s = String(raw ?? "").trim();
-  if (!/^\d{1,6}$/.test(s)) throw new ReferenceDataError("Eaches per unit must be a whole number from 0 to 999999.");
+  if (!/^\d{1,6}$/.test(s)) throw new ReferenceDataError("Eaches per case must be a whole number from 0 to 999999.");
   return Number(s);
 }
 

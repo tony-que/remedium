@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ kind
       break;
     }
     case "skus": {
-      header = ["sku", "category", "description", "units", "eaches_per_unit", "eaches", "sales", "avg_price", "pct_of_product_sales", "mixes_cases_and_packs"];
+      header = ["sku", "category", "description", "cases", "eaches_per_case", "eaches", "sales", "avg_price", "pct_of_product_sales", "mixes_cases_and_packs"];
       rows = (await skuTable(f)).rows
         .sort((a, b) => b.sales - a.sales)
         .map((r) => [
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ kind
       break;
     }
     case "customers": {
-      header = ["customer", "units", "eaches", "sales", "invoices", "skus_bought", "pct_of_sales"];
+      header = ["customer", "cases", "eaches", "sales", "invoices", "skus_bought", "pct_of_sales"];
       rows = (await customerTable(f))
         .sort((a, b) => b.sales - a.sales)
         .map((r) => [csvCell(r.customer), csvCell(r2(r.units)), csvCell(r2(r.eaches)), csvCell(r2(r.sales)), csvCell(r.invoices), csvCell(r.skusBought), csvCell(r1(r.pctOfSales))]);
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ kind
       break;
     }
     case "months": {
-      header = ["month", "sales", "units", "eaches"];
+      header = ["month", "sales", "cases", "eaches"];
       rows = (await byMonth(f)).map((r) => [csvCell(r.month.slice(0, 7)), csvCell(r2(r.sales)), csvCell(r2(r.units)), csvCell(r2(r.eaches))]);
       break;
     }

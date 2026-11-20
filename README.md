@@ -334,13 +334,15 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://<your app's domain>/api/syn
   narrows the customer views, and the totals, monthly chart and grid apply
   both. Click a bar, a table row or a grid heading to filter, and click it
   again (or the chip's ✕) to clear.
-- **Totals** show Sales $, Units, Eaches, Invoices and Customers, each against
+- **Totals** show Sales $, Cases, Eaches, Invoices and Customers, each against
   the same dates a year earlier (Feb 29 maps to Feb 28).
 - **SKU views** (Top SKUs, Every SKU, the grid) show product items only, and
   their % of $ is of product dollars. A note gives the non-product dollars
   left out. Amazon variants roll up under the base SKU unless "Show Amazon
-  variants separately" is on, and † marks a SKU whose units mix cases and packs.
-- **Eaches** = units × each item's own SKU conversion. A banner names any
+  variants separately" is on, and † marks a SKU whose Cases figure mixes cases and
+  packs (Amazon pack variants count packs).
+- **Cases** is QuickBooks' line quantity (the URL and code call it `units`).
+- **Eaches** = cases × each item's own SKU conversion. A banner names any
   product SKU sold in the range without one.
 - **Exports:** each table, the grid, months, and every line behind the totals
   (`/api/export/{skus,customers,grid,months,lines}` with the same query

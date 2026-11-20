@@ -48,7 +48,7 @@ export function MonthChart({ rows, measure }: { rows: MonthRow[]; measure: Measu
                 <TooltipBox>
                   <p className="font-semibold">{money(r.sales)}</p>
                   <p className="tabular text-secondary">
-                    {qty(r.units)} units · {qty(r.eaches)} eaches
+                    {qty(r.units)} cases · {qty(r.eaches)} eaches
                   </p>
                   <p className="text-xs text-muted">{monthLabel(r.month)}</p>
                 </TooltipBox>
@@ -104,7 +104,7 @@ export function TopBars({ rows, measure, kind }: { rows: TopBarRow[]; measure: M
                 <TooltipBox>
                   <p className="font-semibold">{formatMeasure(measure, measureValue(r, measure))}</p>
                   <p className="tabular text-secondary">
-                    {money(r.sales)} · {qty(r.units)} units · {qty(r.eaches)} eaches
+                    {money(r.sales)} · {qty(r.units)} cases · {qty(r.eaches)} eaches
                   </p>
                   <p className="text-xs text-muted">{r.label}</p>
                   <p className="mt-1 text-xs text-muted">{selected === r.key ? "Click to clear the filter" : "Click to filter the page"}</p>

@@ -6,7 +6,7 @@ import { compactMoney, compactQty, money, qty } from "@/components/format";
 
 const CARDS = [
   { key: "sales", label: "Sales $", short: compactMoney, full: money },
-  { key: "units", label: "Units sold", short: compactQty, full: qty },
+  { key: "units", label: "Cases sold", short: compactQty, full: qty },
   { key: "eaches", label: "Eaches sold", short: compactQty, full: qty },
   { key: "invoices", label: "Invoices", short: compactQty, full: qty },
   { key: "customers", label: "Customers", short: compactQty, full: qty },

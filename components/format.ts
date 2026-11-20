@@ -19,7 +19,7 @@ export const compactQty = (n: number) => (Math.abs(n) < 10_000 ? int.format(n) :
 export const pct = (n: number) => `${n.toFixed(1)}%`;
 
 export type MeasureKey = "sales" | "units" | "eaches";
-export const MEASURE_LABEL: Record<MeasureKey, string> = { sales: "Sales $", units: "Units", eaches: "Eaches" };
+export const MEASURE_LABEL: Record<MeasureKey, string> = { sales: "Sales $", units: "Cases", eaches: "Eaches" };
 export const formatMeasure = (m: MeasureKey, n: number) => (m === "sales" ? money0(n) : qty(n));
 export const compactMeasure = (m: MeasureKey, n: number) => (m === "sales" ? compactMoney(n) : compactQty(n));
 

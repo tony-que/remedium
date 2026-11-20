@@ -66,7 +66,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <FiltersBar today={today} customerLabel={d.customerLabel} />
           <TotalsCards totals={d.totals} />
 
-          <Card title={`${m} by month`} subtitle="Hover a month for dollars and units">
+          <Card title={`${m} by month`} subtitle="Hover a month for dollars and cases">
             <MonthChart rows={d.months} measure={f.measure} />
           </Card>
 

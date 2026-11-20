@@ -123,7 +123,7 @@ function ConversionLine({ c, onResult }: { c: ConversionRow; onResult: (s: Actio
       <td className="px-3 py-1.5">
         <form action={save} className="flex items-center gap-2">
           <input type="hidden" name="sku" value={c.sku} />
-          <input name="eachesPerUnit" defaultValue={c.eachesPerUnit} inputMode="numeric" aria-label={`Eaches per unit for ${c.sku}`} className={`${input} w-24 text-right tabular`} />
+          <input name="eachesPerUnit" defaultValue={c.eachesPerUnit} inputMode="numeric" aria-label={`Eaches per case for ${c.sku}`} className={`${input} w-24 text-right tabular`} />
           <button type="submit" disabled={saving} className={btn}>Save</button>
         </form>
         {saveState && !saveState.ok && <p className="mt-1 text-xs text-[var(--delta-bad)]">{saveState.message}</p>}
@@ -171,7 +171,7 @@ export function ConversionsPanel({ conversions, missing }: { conversions: Conver
           <datalist id="missing-skus">{missing.map((s) => <option key={s} value={s} />)}</datalist>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          Eaches per unit
+          Eaches per case
           <input name="eachesPerUnit" required inputMode="numeric" className={`${input} w-28 text-right`} />
         </label>
         <button type="submit" disabled={adding} className={btn}>Add or update</button>
@@ -189,7 +189,7 @@ export function ConversionsPanel({ conversions, missing }: { conversions: Conver
           <thead className="sticky top-0 bg-surface text-secondary">
             <tr className="border-b border-line">
               <th className="px-3 py-1.5 font-medium">SKU</th>
-              <th className="px-3 py-1.5 font-medium">Eaches per unit</th>
+              <th className="px-3 py-1.5 font-medium">Eaches per case</th>
               <th className="px-3 py-1.5 font-medium">Note</th>
               <th className="hidden px-3 py-1.5 font-medium md:table-cell">Updated</th>
               <th className="px-3 py-1.5"><span className="sr-only">Remove</span></th>

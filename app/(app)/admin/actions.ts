@@ -148,7 +148,7 @@ export async function setConversionAction(_prev: ActionResult | null, fd: FormDa
   const { setConversion } = await import("@/lib/reference-data");
   return runRef(async () => {
     const r = await setConversion(actor, String(fd.get("sku") ?? ""), fd.get("eachesPerUnit"));
-    return r.previous === null ? `Added ${r.sku}: ${r.eachesPerUnit} eaches per unit.` : `${r.sku}: ${r.previous} → ${r.eachesPerUnit} eaches per unit.`;
+    return r.previous === null ? `Added ${r.sku}: ${r.eachesPerUnit} eaches per case.` : `${r.sku}: ${r.previous} → ${r.eachesPerUnit} eaches per case.`;
   });
 }
 

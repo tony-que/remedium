@@ -99,7 +99,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           Eaches conversions
         </h2>
         <p className="text-sm opacity-70">
-          Eaches = units × eaches per unit, by each item&apos;s own SKU (so &ldquo;REMSF99B - AMZ&rdquo; has its own row). A SKU with
+          Eaches = cases × eaches per case (per pack for Amazon pack variants), by each item&apos;s own SKU (so &ldquo;REMSF99B - AMZ&rdquo; has its own row). A SKU with
           no row counts as 0 eaches.
         </p>
         <ConversionsPanel

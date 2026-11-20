@@ -126,13 +126,13 @@ export function SkuTable({ rows, nonProductSales, exportHref }: { rows: SkuRow[]
       { key: "sku", label: "SKU", sortValue: (r) => r.sku, render: (r) => (
         <>
           {r.sku}
-          {r.mixesPacks && <span title="Mixes cases and packs: units count packs on some lines" className="ml-1 text-muted">†</span>}
+          {r.mixesPacks && <span title="Mixes cases and packs: Amazon pack variants count packs, not cases" className="ml-1 text-muted">†</span>}
         </>
       ) },
       { key: "category", label: "Category", sortValue: (r) => r.category, render: (r) => <span className="text-secondary">{r.category}</span>, className: "max-w-[14rem]" },
       { key: "description", label: "Description", sortValue: (r) => r.description, render: (r) => <span className="line-clamp-2 text-secondary">{r.description}</span>, className: "max-w-[18rem]" },
-      { key: "units", label: "Units", numeric: true, sortValue: (r) => r.units, render: (r) => qty(r.units) },
-      { key: "epu", label: "Eaches / unit", numeric: true, sortValue: (r) => r.eachesPerUnit, render: (r) =>
+      { key: "units", label: "Cases", numeric: true, sortValue: (r) => r.units, render: (r) => qty(r.units) },
+      { key: "epu", label: "Eaches / case", numeric: true, sortValue: (r) => r.eachesPerUnit, render: (r) =>
         r.missingConversion ? <span className="text-[var(--delta-bad)]" title="No conversion: counts as 0 eaches">none</span>
         : r.mixedConversion ? <span className="text-muted" title="Variants with different conversions">mixed</span>
         : qty(r.eachesPerUnit ?? 0) },
@@ -159,7 +159,7 @@ export function SkuTable({ rows, nonProductSales, exportHref }: { rows: SkuRow[]
       <div className="flex flex-wrap items-start justify-between gap-2 text-xs text-muted">
         <div className="flex flex-col gap-0.5">
           {nonProductSales !== 0 && <p>{money(nonProductSales)} in non-product items not shown.</p>}
-          {anyPacks && <p>† Amazon pack variants count packs, not cases, so units for these SKUs mix the two.</p>}
+          {anyPacks && <p>† Amazon pack variants count packs, not cases, so the Cases figure for these SKUs mixes the two.</p>}
         </div>
         <a href={exportHref} className="underline underline-offset-2 hover:text-foreground">
           Download CSV
@@ -174,7 +174,7 @@ export function CustomerTable({ rows, exportHref }: { rows: CustomerRow[]; expor
   const columns: Column<CustomerRow>[] = useMemo(
     () => [
       { key: "customer", label: "Customer", sortValue: (r) => r.customer, render: (r) => r.customer, className: "max-w-[18rem]" },
-      { key: "units", label: "Units", numeric: true, sortValue: (r) => r.units, render: (r) => qty(r.units) },
+      { key: "units", label: "Cases", numeric: true, sortValue: (r) => r.units, render: (r) => qty(r.units) },
       { key: "eaches", label: "Eaches", numeric: true, sortValue: (r) => r.eaches, render: (r) => qty(r.eaches) },
       { key: "sales", label: "Sales $", numeric: true, sortValue: (r) => r.sales, render: (r) => money(r.sales) },
       { key: "invoices", label: "Invoices", numeric: true, sortValue: (r) => r.invoices, render: (r) => qty(r.invoices) },
