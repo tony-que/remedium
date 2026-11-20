@@ -7,6 +7,8 @@ import { priorYear, type Filters, type Interval, type Measure } from "./filters"
 // browser only formats results. Filter rules (SPEC.md, Calculations):
 // * a customer filter narrows the SKU views; a SKU filter narrows the customer views
 // * totals, the monthly chart and the grid apply both
+// * a product line (Wound Care, Skincare, Support Surfaces) narrows every view
+//   and leaves non-product lines out of all of them, totals included
 // * SKU views (top SKUs, SKU table, grid) show product lines only, and their
 //   % of $ is over product lines; totals, months and customer views include every line
 
@@ -20,6 +22,8 @@ function where(f: Filters, scope: Scope): Prisma.Sql {
   if (scope.customer && f.customer) parts.push(Prisma.sql`customer_qbo_id = ${f.customer}`);
   if (scope.sku && f.sku) parts.push(Prisma.sql`${skuKey(f)} = ${f.sku}`);
   if (scope.productOnly) parts.push(Prisma.sql`is_product`);
+  // A product line narrows every view, and leaves non-product lines out (they belong to no line).
+  if (f.line) parts.push(Prisma.sql`is_product AND product_line = ${f.line}`);
   if (f.excludeZero) parts.push(Prisma.sql`amount <> 0`);
   return Prisma.join(parts, " AND ");
 }

@@ -1,5 +1,5 @@
 import { requireViewer } from "@/lib/access";
-import { filtersToQuery, parseFilters, todayCentral } from "@/lib/metrics/filters";
+import { filtersToQuery, parseFilters, PRODUCT_LINE_LABELS, todayCentral } from "@/lib/metrics/filters";
 import { getDashboard } from "@/lib/metrics/dashboard";
 import { measureOf } from "@/lib/metrics/queries";
 import { DashboardNav } from "@/components/dashboard/nav";
@@ -87,7 +87,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </Card>
           </div>
 
-          <Card title="Every SKU" subtitle={`${d.skus.rows.length} SKU${d.skus.rows.length === 1 ? "" : "s"} · product items only${f.customer ? " · selected customer" : ""}`}>
+          <Card
+            title="Every SKU"
+            subtitle={`${d.skus.rows.length} SKU${d.skus.rows.length === 1 ? "" : "s"} · ${f.line ? PRODUCT_LINE_LABELS[f.line] : "product items only"}${f.customer ? " · selected customer" : ""}`}
+          >
             <SkuTable rows={d.skus.rows} nonProductSales={d.skus.nonProductSales} exportHref={exportHref("skus")} />
           </Card>
 

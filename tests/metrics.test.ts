@@ -255,6 +255,46 @@ describe("missing conversions and export", () => {
   });
 });
 
+describe("product line", () => {
+  // i1, i2 REMSF99B (Wound Care); i3, i4 SCAF1003 (Skincare); i5 NOCONV (Support Surfaces); i9 Shipping (non-product).
+  const WOUND = 1610 + 644 + 1050 + 0 - 322;
+  const SKIN = 144 + 659.7 + 72;
+  const SUPPORT = 50 + 30 - 30;
+  const NON_PRODUCT = 100;
+
+  it("narrows the totals to one line by SKU prefix, and the lines plus non-product items add up to all lines", async () => {
+    const [all, wound, skin, support] = await Promise.all([totals(f()), totals(f({ line: "wound" })), totals(f({ line: "skin" })), totals(f({ line: "support" }))]);
+    expect(wound.sales).toBeCloseTo(WOUND, 2);
+    expect(skin.sales).toBeCloseTo(SKIN, 2);
+    expect(support.sales).toBeCloseTo(SUPPORT, 2);
+    expect(wound.sales + skin.sales + support.sales + NON_PRODUCT).toBeCloseTo(all.sales, 2);
+    expect(wound.units + skin.units + support.units + 1).toBe(all.units);
+    expect(wound.eaches + skin.eaches + support.eaches).toBe(all.eaches);
+  });
+
+  it("narrows the SKU table, customer table, grid and periods, and leaves non-product dollars out", async () => {
+    const skus = await skuTable(f({ line: "skin" }));
+    expect(skus.rows.map((r) => r.sku)).toEqual(["SCAF1003"]);
+    expect(skus.rows[0].pctOfSales).toBeCloseTo(100, 6);
+    expect(skus.nonProductSales).toBe(0);
+
+    const customers = await customerTable(f({ line: "wound" }));
+    expect(customers.reduce((s, c) => s + c.sales, 0)).toBeCloseTo(WOUND, 2);
+    expect(customers.find((c) => c.customerId === "c1")!.sales).toBeCloseTo(1610 + 1050 - 322, 2); // no Shipping
+
+    const g = await grid(f({ line: "support" }));
+    expect(g.skus).toEqual(["NOCONV"]);
+
+    const periods = await byPeriod(f({ line: "skin", to: "2026-03-31" }));
+    expect(periods.map((p) => p.sales)).toEqual([144, 659.7 + 72, 0]);
+  });
+
+  it("limits the missing-conversion warning to the line", async () => {
+    expect((await missingConversions(f({ line: "support" }))).map((r) => r.sku)).toEqual(["NOCONV"]);
+    expect(await missingConversions(f({ line: "wound" }))).toEqual([]);
+  });
+});
+
 describe("headline", () => {
   it("names the top SKU and customer", async () => {
     const [skus, customers] = await Promise.all([skuTable(f()), customerTable(f())]);

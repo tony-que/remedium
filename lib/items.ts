@@ -77,3 +77,16 @@ export function parseItemName(fullName: string): ParsedItem {
   const isProduct = category !== null && !NON_PRODUCT_SET.has(sku.toLowerCase());
   return { sku, category, baseSku, isAmazonVariant, isPackVariant, isProduct };
 }
+
+/**
+ * The product line a SKU belongs to, by its first letters (case-insensitive):
+ * REM or RH is Wound Care, SC is Skincare, anything else is Support Surfaces.
+ * The sales_lines view applies the same rule in SQL, and gives non-product
+ * lines no line at all.
+ */
+export function productLineOf(sku: string): "wound" | "skin" | "support" {
+  const s = sku.trim().toUpperCase();
+  if (s.startsWith("REM") || s.startsWith("RH")) return "wound";
+  if (s.startsWith("SC")) return "skin";
+  return "support";
+}

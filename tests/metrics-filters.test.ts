@@ -14,6 +14,7 @@ describe("parseFilters", () => {
       excludeZero: false,
       amazonSeparate: false,
       interval: "month",
+      line: null,
     });
   });
 
@@ -25,10 +26,10 @@ describe("parseFilters", () => {
 
   it("reads every filter and round-trips through the query string", () => {
     const f = parseFilters(
-      { from: "2025-03-01", to: "2025-03-31", measure: "eaches", customer: "58", sku: "REMSF99B - AMZ", zero: "exclude", amazon: "separate", interval: "week" },
+      { from: "2025-03-01", to: "2025-03-31", measure: "eaches", customer: "58", sku: "REMSF99B - AMZ", zero: "exclude", amazon: "separate", interval: "week", line: "skin" },
       TODAY,
     );
-    expect(f).toEqual({ from: "2025-03-01", to: "2025-03-31", measure: "eaches", customer: "58", sku: "REMSF99B - AMZ", excludeZero: true, amazonSeparate: true, interval: "week" });
+    expect(f).toEqual({ from: "2025-03-01", to: "2025-03-31", measure: "eaches", customer: "58", sku: "REMSF99B - AMZ", excludeZero: true, amazonSeparate: true, interval: "week", line: "skin" });
     expect(parseFilters(new URLSearchParams(filtersToQuery(f)), TODAY)).toEqual(f);
   });
 
@@ -42,6 +43,13 @@ describe("parseFilters", () => {
     [{ from: "yesterday", to: "2026-04-01" }],
   ])("falls back to the default range for %o", (p) => {
     expect(parseFilters(p, TODAY)).toMatchObject({ from: "2026-01-01", to: TODAY });
+  });
+
+  it("reads the product line, and ignores unknown lines", () => {
+    expect(parseFilters({ line: "wound" }, TODAY).line).toBe("wound");
+    expect(parseFilters({ line: "support" }, TODAY).line).toBe("support");
+    expect(parseFilters({ line: "pharmacy" }, TODAY).line).toBeNull();
+    expect(filtersToQuery(parseFilters({ line: "wound" }, TODAY))).toBe("from=2026-01-01&to=2026-11-19&line=wound");
   });
 
   it("ignores unknown measures and odd customer ids", () => {
