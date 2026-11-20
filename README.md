@@ -1,4 +1,4 @@
-# Remedium Sales Dashboard
+# Remedium Cockpit
 
 A private web app that syncs Remedium Healthcare Products' QuickBooks Online
 invoices into Postgres and shows sales by SKU and by customer. The full build
@@ -161,7 +161,7 @@ app itself checks the tenant against the list:
 1. In the [Microsoft Entra admin center](https://entra.microsoft.com), signed
    in to the **remedium-usa.com** tenant, open **App registrations → New
    registration**.
-   - Name: `Remedium Sales Dashboard`
+   - Name: `Remedium Cockpit`
    - Supported account types: **Accounts in any organizational directory
      (Multitenant)**. The app only accepts the tenants on the list.
    - Redirect URI: **Web**,
@@ -193,7 +193,7 @@ tenant list are all set.
 Links are sent through [Resend](https://resend.com), which will also send the
 sync-failure alerts in build step 5. Create an API key, verify the sending
 domain, then set `AUTH_RESEND_KEY` and `EMAIL_FROM`
-(for example `Remedium Sales <sales@remedium-usa.com>`). The email form
+(for example `Remedium Cockpit <sales@remedium-usa.com>`). The email form
 appears once both are set.
 
 ### Dev login (local only)

@@ -1,6 +1,6 @@
 # Microsoft sign-in (Entra ID) setup
 
-This lets your team sign in to the Remedium Sales Dashboard with their
+This lets your team sign in to Remedium Cockpit with their
 Microsoft 365 work accounts. You do it once, in about 15 minutes. You need to
 be an admin of the **remedium-usa.com** Microsoft 365 tenant, specifically a
 Global Administrator, Application Administrator or Cloud Application
@@ -32,7 +32,7 @@ and the app itself accepts only these two:
    sign in with your **remedium-usa.com** admin account.
 2. Open **Identity → Applications → App registrations → New registration**.
 3. Fill in:
-   - **Name:** `Remedium Sales Dashboard`
+   - **Name:** `Remedium Cockpit`
    - **Supported account types:** **Accounts in any organizational directory
      (Any Microsoft Entra ID tenant – Multitenant)**. The app turns away every
      tenant not on the list above.

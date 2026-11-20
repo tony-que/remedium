@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Remedium Sales Dashboard",
-  description: "Sales by SKU and customer, synced from QuickBooks Online.",
+  title: "Remedium Cockpit",
+  description: "Remedium sales by SKU and customer, synced from QuickBooks Online.",
   robots: { index: false, follow: false },
 };
 

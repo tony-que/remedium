@@ -37,7 +37,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-4 py-12">
       <div>
-        <h1 className="text-2xl font-semibold">Remedium Sales Dashboard</h1>
+        <h1 className="text-2xl font-semibold">Remedium Cockpit</h1>
         <p className="mt-1 text-sm opacity-70">Sign in with your work account.</p>
       </div>
 

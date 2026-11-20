@@ -1,4 +1,4 @@
-# Deploying the Remedium Sales Dashboard
+# Deploying Remedium Cockpit
 
 Production runs on **Vercel**, with **Neon Postgres** added through Vercel's
 Marketplace. It goes live in two stages at the same URL:

@@ -248,11 +248,11 @@ async function alertIfNeeded(runId: bigint, tokenFailure: boolean, error: string
   const admins = (await prisma.allowedUser.findMany({ where: { role: "admin" }, select: { email: true } })).map((a) => a.email);
   const base = process.env.AUTH_URL ?? "";
   const subject = isToken
-    ? "Sales dashboard: QuickBooks connection needs attention"
-    : "Sales dashboard: QuickBooks sync failed twice in a row";
+    ? "Remedium Cockpit: QuickBooks connection needs attention"
+    : "Remedium Cockpit: QuickBooks sync failed twice in a row";
   const body = [
     isToken
-      ? "The sales dashboard couldn't refresh its QuickBooks access, so syncing has stopped. The dashboard still shows the last good data."
+      ? "Remedium Cockpit couldn't refresh its QuickBooks access, so syncing has stopped. The dashboard still shows the last good data."
       : "The last two QuickBooks syncs failed. The dashboard still shows the last good data.",
     "",
     `Error: ${error}`,

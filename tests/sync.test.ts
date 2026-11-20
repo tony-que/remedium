@@ -237,7 +237,7 @@ describe("failures and alerts", () => {
     const r = await sync();
     expect(r.status).toBe("failed");
     expect(qbo.emails).toHaveLength(1);
-    expect(qbo.emails[0]).toMatchObject({ to: ["admin@example.com"], subject: "Sales dashboard: QuickBooks connection needs attention" });
+    expect(qbo.emails[0]).toMatchObject({ to: ["admin@example.com"], subject: "Remedium Cockpit: QuickBooks connection needs attention" });
     expect(qbo.emails[0].text).not.toMatch(/refresh-|access-/);
     // The dashboard keeps the last good data.
     expect((await totals()).units).toBe(18);
@@ -255,7 +255,7 @@ describe("failures and alerts", () => {
     await sync({ mode: "full" });
     expect(qbo.emails).toHaveLength(0);
     await sync({ mode: "full" });
-    expect(qbo.emails.map((e) => e.subject)).toEqual(["Sales dashboard: QuickBooks sync failed twice in a row"]);
+    expect(qbo.emails.map((e) => e.subject)).toEqual(["Remedium Cockpit: QuickBooks sync failed twice in a row"]);
     await sync({ mode: "full" });
     expect(qbo.emails).toHaveLength(1);
     const runs = await prisma.syncRun.findMany({ orderBy: { id: "asc" } });

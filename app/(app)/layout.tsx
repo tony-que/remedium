@@ -13,7 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <header className="border-b border-current/10">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
           <Link href="/" className="font-semibold">
-            Remedium Sales
+            Remedium Cockpit
           </Link>
           <nav className="flex items-center gap-4 text-sm">
             {role === "admin" && (
