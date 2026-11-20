@@ -1,12 +1,23 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { getOrderwerksConfig, OrderwerksClient, stockRows, type OrderwerksConfig, type OwCatalogItem } from "@/lib/orderwerks/client";
+import { QboClient } from "@/lib/qbo/client";
+import { getAccessToken } from "@/lib/qbo/connection";
+import { mapItem, type QboItem } from "@/lib/qbo/mappers";
+import { upsertItems } from "@/lib/sync/store";
+import { stockRows } from "./stock";
 
-// One inventory sync: reads every catalog item from Orderwerks and replaces
-// inventory_levels with the stock-tracked SKUs. The hourly cron and the
-// admin's Refresh inventory both call runInventorySync(); a unique index on
-// inventory_sync_runs lets only one run at a time.
+// One inventory sync: reads every active QuickBooks item (quantity on hand,
+// on purchase orders, on sales orders, and purchase cost) and replaces
+// inventory_levels with the items that track quantity. It also refreshes the
+// stored items, so cost changes show without waiting for the nightly sync.
+// The hourly cron and the admin's Refresh inventory both call
+// runInventorySync(); a unique index on inventory_sync_runs lets only one run
+// at a time.
+//
+// QuickBooks changes quantity on hand through transactions without always
+// marking the item as changed, so this reads the full item list every time
+// rather than relying on Change Data Capture.
 
 /** A run still "running" after this long died without finishing. */
 export const ABANDONED_AFTER_MS = 10 * 60 * 1000;
@@ -15,10 +26,10 @@ export interface InventorySyncOptions {
   /** "cron", or the email of the admin who pressed Refresh inventory. */
   trigger: string;
   /** Test seams. */
-  config?: OrderwerksConfig;
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   now?: () => Date;
+  pageSize?: number;
 }
 
 export type InventorySyncResult =
@@ -43,41 +54,56 @@ export async function runInventorySync(opts: InventorySyncOptions): Promise<Inve
     throw err;
   }
 
-  let client: OrderwerksClient | null = null;
+  let client: QboClient | null = null;
   try {
-    const config = opts.config ?? getOrderwerksConfig();
-    client = new OrderwerksClient({ config, fetchImpl: opts.fetchImpl, sleep: opts.sleep });
-    const catalogs = await client.catalogGuids();
-    if (catalogs.length === 0) throw new Error("Orderwerks returned no catalogs for this API key.");
-    const items: OwCatalogItem[] = [];
-    for (const guid of catalogs) items.push(...(await client.catalogItems(guid)));
-    const { rows, skippedNoSku, duplicateSkus } = stockRows(items);
-    if (rows.length === 0) throw new Error("Orderwerks returned no stock-tracked items with a SKU; inventory was left as it was.");
+    // No forced refresh: the token is refreshed only when it's about to expire
+    // (getAccessToken locks the connection row, so this never races the nightly sync).
+    const conn = await getAccessToken({ fetchImpl: opts.fetchImpl, now });
+    let token = conn.accessToken;
+    client = new QboClient({
+      realmId: conn.realmId,
+      apiBase: conn.apiBase,
+      fetchImpl: opts.fetchImpl,
+      sleep: opts.sleep,
+      pageSize: opts.pageSize,
+      getToken: async (force) => {
+        if (force) token = (await getAccessToken({ force: true, fetchImpl: opts.fetchImpl, now })).accessToken;
+        return token;
+      },
+    });
+
+    const items: QboItem[] = [];
+    for await (const page of client.queryAll<QboItem>("Item")) {
+      items.push(...page);
+      await upsertItems(page.filter((i) => (i.FullyQualifiedName ?? i.Name ?? "").trim()).map(mapItem));
+    }
+    const { rows, duplicateSkus } = stockRows(items);
+    if (rows.length === 0) throw new Error("QuickBooks has no active items that track quantity on hand; inventory was left as it was.");
 
     const syncedAt = now();
+    const dec = (x: number) => new Prisma.Decimal(x.toFixed(2));
     await prisma.$transaction([
       prisma.inventoryLevel.deleteMany({}),
       prisma.inventoryLevel.createMany({
         data: rows.map((r) => ({
           sku: r.sku,
-          catalogItemGuid: r.catalogItemGuid,
+          itemQboId: r.itemQboId,
           name: r.name,
-          qtyAvailable: new Prisma.Decimal(r.qtyAvailable.toFixed(2)),
-          qtyReserved: new Prisma.Decimal(r.qtyReserved.toFixed(2)),
-          qtyHeld: new Prisma.Decimal(r.qtyHeld.toFixed(2)),
-          qtyIncoming: new Prisma.Decimal(r.qtyIncoming.toFixed(2)),
-          qtyBackordered: new Prisma.Decimal(r.qtyBackordered.toFixed(2)),
-          minQtyOnHand: r.minQtyOnHand === null ? null : new Prisma.Decimal(r.minQtyOnHand.toFixed(2)),
-          sourceUpdatedAt: r.sourceUpdatedAt,
+          qtyAvailable: dec(r.qtyAvailable),
+          qtyReserved: dec(r.qtyReserved),
+          qtyHeld: dec(0),
+          qtyIncoming: dec(r.qtyIncoming),
+          qtyBackordered: dec(0),
+          minQtyOnHand: r.reorderPoint === null ? null : dec(r.reorderPoint),
+          sourceUpdatedAt: null,
           syncedAt,
         })),
       }),
     ]);
 
-    const notes = [`${catalogs.length} catalog${catalogs.length === 1 ? "" : "s"}, ${items.length} items read`];
-    if (skippedNoSku) notes.push(`${skippedNoSku} stock item${skippedNoSku === 1 ? "" : "s"} without a SKU skipped`);
-    if (duplicateSkus.length) notes.push(`listed in more than one catalog, counted once: ${duplicateSkus.slice(0, 10).join(", ")}`);
-    const note = notes.join("; ");
+    const note = [`${items.length} items read`, duplicateSkus.length ? `same SKU on two items, counted once: ${duplicateSkus.slice(0, 10).join(", ")}` : null]
+      .filter(Boolean)
+      .join("; ");
     await prisma.inventorySyncRun.update({
       where: { id: runId },
       data: { status: "succeeded", finishedAt: now(), skus: rows.length, apiRequests: client.requests, note },

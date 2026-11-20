@@ -33,15 +33,14 @@ function Status({ state }: { state: ActionResult | null }) {
 const btn = "rounded-md border border-current/30 px-3 py-1.5 text-sm hover:bg-foreground/5 disabled:opacity-50";
 const when = (iso: string) => new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" });
 
-/** Orderwerks connection status, recent inventory syncs and Refresh inventory. */
+/** Recent inventory syncs and Refresh inventory. */
 export function InventorySyncPanel({ configured, runs }: { configured: boolean; runs: InventoryRunRow[] }) {
   const [state, action, pending] = useActionState(async () => syncInventoryAction(), null);
   return (
     <div className="flex flex-col gap-3">
       {!configured && (
         <p className="rounded-md border border-[var(--warn-border)] bg-[var(--warn-bg)] px-3 py-2 text-sm">
-          <span aria-hidden>⚠ </span>Orderwerks isn&apos;t connected. Create an API key in Orderwerks under <strong>Business Settings</strong>, then add{" "}
-          <code>ORDERWERKS_API_KEY</code> and <code>ORDERWERKS_API_SECRET</code> in Vercel → Settings → Environment Variables and redeploy.
+          <span aria-hidden>⚠ </span>Connect QuickBooks above first: stock levels come from QuickBooks quantity on hand.
         </p>
       )}
       <form action={action}>

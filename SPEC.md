@@ -229,9 +229,9 @@ Answer these before step 1 or as Claude Code reaches them. Each has a default it
 
 ## Inventory dashboard
 
-A second page, **Inventory** (`/inventory`), shows stock from the 3PL, Orderwerks, next to sales from QuickBooks.
+A second page, **Inventory** (`/inventory`), shows stock from QuickBooks next to sales.
 
-- **Data:** an hourly cron (`/api/inventory-sync`, plus Refresh inventory now on the admin page) reads every catalog item from the Orderwerks REST API (`GET /v1/catalogs`, `GET /v1/catalog/{guid}/catalog_items`, API key and secret headers) and replaces `inventory_levels` with the stock-tracked SKUs: available (`qty_on_hand`), reserved, held, on open POs (`qty_incoming`) and backordered. Unit cost is the QuickBooks item's PurchaseCost (`items.purchase_cost`). If Orderwerks counts eaches, set `ORDERWERKS_QTY_UNIT=eaches` and the page converts to cases with `sku_conversions`.
+- **Data:** an hourly cron (`/api/inventory-sync`, plus Refresh inventory now on the admin page) reads every active QuickBooks item and replaces `inventory_levels` with the items that track quantity on hand: available (QtyOnHand − QtyOnSalesOrder), reserved (QtyOnSalesOrder) and on open POs (QtyOnPurchaseOrder), all in QuickBooks units (cases). It reads the whole item list each time, because quantity changes don't reliably mark items as changed for CDC. Unit cost is the item's PurchaseCost (`items.purchase_cost`).
 - **Monthly usage:** the greater of the owner's uploaded usage table (`sku_usage`, admin page, CSV with `sku,monthly_usage` in cases per month) and the average cases invoiced over the last 3 full calendar months, net of credit memos.
 - **Months on hand:** available ÷ monthly usage.
 - **Reorder rule:** a PO takes 90 days to arrive and stock must never fall below 3 months, so a SKU is **Order now** when available + on open POs is under (3 + 90 ÷ 30.44 ≈ 5.96) months of usage. The suggested order brings it back to that level, and the order-by date is when it gets there at the current pace. **Below 3 months** means available stock alone is under the floor. **Order within 30 days** gives notice a month ahead.

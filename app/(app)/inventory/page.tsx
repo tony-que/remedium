@@ -3,7 +3,6 @@ import { requireViewer } from "@/lib/access";
 import { PRODUCT_LINE_LABELS, PRODUCT_LINES, todayCentral, type ProductLine } from "@/lib/metrics/filters";
 import { inventoryRows, lastInventorySync, type InventoryRow } from "@/lib/inventory/queries";
 import { addDaysYmd, FLOOR_MONTHS, LEAD_TIME_DAYS, REORDER_MONTHS, STATUS_LABEL, type Status } from "@/lib/inventory/plan";
-import { orderwerksConfigured } from "@/lib/orderwerks/client";
 import { compactMoney, dayLabel, money, qty } from "@/components/format";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +67,6 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   await requireViewer();
   const f = parse(await searchParams);
   const today = todayCentral();
-  const configured = orderwerksConfigured();
   const [all, sync] = await Promise.all([inventoryRows(today), lastInventorySync()]);
 
   // Quantities are kept in cases; eaches multiplies by each SKU's conversion.
@@ -85,7 +83,6 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const noCost = rows.filter((r) => r.value === null && r.onHand > 0).length;
   const toOrder = rows.filter((r) => r.status === "below_floor" || r.status === "order_now").length;
   const belowFloor = rows.filter((r) => r.status === "below_floor").length;
-  const missingConversion = all.filter((r) => r.missingConversion).map((r) => r.sku);
   const valueByLine = PRODUCT_LINES.map((line) => {
     const rs = all.filter((r) => r.line === line);
     return { line, skus: rs.length, value: rs.reduce((s, r) => s + (r.value ?? 0), 0), onHand: rs.reduce((s, r) => s + r.onHand, 0) };
@@ -108,25 +105,12 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         </p>
       </header>
 
-      {!configured && (
-        <div role="alert" className="rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] px-3 py-2 text-sm">
-          <span aria-hidden>⚠ </span>
-          <strong>Orderwerks isn&apos;t connected yet.</strong> An admin adds the Orderwerks API key and secret in Vercel; the admin page has the steps.
-        </div>
-      )}
       {sync.latest?.status === "failed" && (
         <div role="alert" className="rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] px-3 py-2 text-sm">
           <span aria-hidden>⚠ </span>
           <strong>The last inventory sync failed</strong>, so these figures may be out of date: {sync.latest.error}
         </div>
       )}
-      {missingConversion.length > 0 && (
-        <div role="alert" className="rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] px-3 py-2 text-sm">
-          <span aria-hidden>⚠ </span>
-          Orderwerks counts eaches, but these SKUs have no eaches conversion, so their stock shows as 0: {missingConversion.join(", ")}.
-        </div>
-      )}
-
       <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
         <div role="group" aria-label="Product line" className="flex flex-wrap">
           <Link href={href({ ...f, line: null })} aria-current={f.line === null ? "true" : undefined} className={seg(f.line === null)}>
@@ -149,7 +133,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
       {all.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-6 text-secondary">
-          No stock levels yet. Once Orderwerks is connected, inventory refreshes every hour, or an admin can press Refresh inventory now on the admin page.
+          No stock levels yet. Inventory refreshes from QuickBooks every hour, or an admin can press Refresh inventory now on the admin page.
         </p>
       ) : (
         <>
@@ -278,8 +262,9 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             <summary className="cursor-pointer">How these numbers are worked out</summary>
             <div className="mt-2 flex flex-col gap-2">
               <p>
-                Stock comes from Orderwerks. <em>Available</em> is what can ship now; <em>reserved</em> is on the shelf but set aside for open orders;{" "}
-                <em>on open POs</em> is ordered and not yet received. Cost is each item&apos;s purchase cost in QuickBooks.
+                Stock comes from QuickBooks: <em>available</em> is quantity on hand less what&apos;s on open sales orders (<em>reserved</em>), and{" "}
+                <em>on open POs</em> is ordered on QuickBooks purchase orders and not yet received. Only items that track quantity on hand appear. Cost is
+                each item&apos;s purchase cost in QuickBooks.
               </p>
               <p>
                 Monthly usage is the greater of your monthly usage table (admin page) and the average cases invoiced over the last 3 full months, net of

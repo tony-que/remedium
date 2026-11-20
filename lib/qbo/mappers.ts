@@ -44,6 +44,14 @@ export interface QboItem {
   Active?: boolean;
   /** Cost per unit the company pays, used for inventory value. */
   PurchaseCost?: number;
+  /** Sales description. */
+  Description?: string;
+  /** Inventory items only: whether QuickBooks tracks quantity, and the quantities. */
+  TrackQtyOnHand?: boolean;
+  QtyOnHand?: number;
+  QtyOnPurchaseOrder?: number;
+  QtyOnSalesOrder?: number;
+  ReorderPoint?: number;
   status?: string;
 }
 
