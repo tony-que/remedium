@@ -25,12 +25,21 @@ describe("parseItemName", () => {
     expect(p.baseSku).toBe("REMSF99B");
   });
 
-  it("treats an item with no category as non-product", () => {
+  it("treats an item with no category as a product", () => {
     const p = parseItemName("REMSF99B");
     expect(p.category).toBeNull();
     expect(p.sku).toBe("REMSF99B");
-    expect(p.isProduct).toBe(false);
+    expect(p.isProduct).toBe(true);
+    expect(parseItemName("HOMECARE MATTRESS").isProduct).toBe(true);
+    expect(parseItemName("HOMECARE MATTRESS-AMZ").isProduct).toBe(true);
   });
+
+  it.each(["Shipping", "DISCOUNT", "Research and Development", "Product Partnership and Profit Share Services"])(
+    "still flags %s as non-product with no category",
+    (name) => {
+      expect(parseItemName(name).isProduct).toBe(false);
+    },
+  );
 
   it.each([
     "Product Partnership and Profit Share Services",

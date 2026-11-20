@@ -74,7 +74,9 @@ export function parseItemName(fullName: string): ParsedItem {
   const categoryParts = parts.slice(0, -1);
   const category = categoryParts.length > 0 ? categoryParts.join(CATEGORY_SEPARATOR) : null;
   const { baseSku, isAmazonVariant, isPackVariant } = baseSkuOf(sku);
-  const isProduct = category !== null && !NON_PRODUCT_SET.has(sku.toLowerCase());
+  // Every item is a product unless it is one of the named non-product items,
+  // with or without a category (so "HOMECARE MATTRESS" counts as a product).
+  const isProduct = !NON_PRODUCT_SET.has(sku.toLowerCase());
   return { sku, category, baseSku, isAmazonVariant, isPackVariant, isProduct };
 }
 
