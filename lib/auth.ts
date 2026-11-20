@@ -121,6 +121,15 @@ export const authConfig: NextAuthConfig = {
         // who has access.
         const listed = await prisma.allowedUser.findUnique({ where: { email: address } });
         await audit(address, "magic_link_requested", { sent: Boolean(listed) });
+        if (!listed) {
+          // Server log only (Vercel → Logs), so an admin can see why no email
+          // arrived. The person on the page still sees the same response.
+          const admins = await prisma.allowedUser.count({ where: { role: "admin" } });
+          console.warn(
+            `Magic link not sent: ${address} is not on the allow-list.` +
+              (admins === 0 ? " The allow-list has no admin: set ADMIN_EMAIL in the environment and redeploy." : ""),
+          );
+        }
         return listed ? true : "/signin/check-email";
       }
 
