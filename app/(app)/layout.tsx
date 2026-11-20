@@ -16,6 +16,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             Remedium Cockpit
           </Link>
           <nav className="flex items-center gap-4 text-sm">
+            <Link href="/" className="underline underline-offset-4 hover:opacity-80">
+              Sales
+            </Link>
+            <Link href="/inventory" className="underline underline-offset-4 hover:opacity-80">
+              Inventory
+            </Link>
             {role === "admin" && (
               <Link href="/admin" className="underline underline-offset-4 hover:opacity-80">
                 Admin

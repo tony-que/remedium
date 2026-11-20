@@ -17,7 +17,10 @@ export type AuditAction =
   | "sync_run"
   | "item_product_set"
   | "conversion_set"
-  | "conversion_deleted";
+  | "conversion_deleted"
+  | "inventory_sync_succeeded"
+  | "inventory_sync_failed"
+  | "usage_uploaded";
 
 export const AUDIT_RETENTION_DAYS = 90;
 

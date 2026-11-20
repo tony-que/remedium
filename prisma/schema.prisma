@@ -91,6 +91,8 @@ model Item {
   isProductSetByAdmin Boolean  @default(false) @map("is_product_set_by_admin")
   /// QuickBooks item type (Inventory, NonInventory, Service, ...).
   itemType            String?  @map("item_type")
+  /// QuickBooks PurchaseCost per unit (case), for inventory value. Null when QuickBooks has none.
+  purchaseCost        Decimal? @map("purchase_cost") @db.Decimal(14, 4)
   active              Boolean  @default(true)
   updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -123,6 +125,63 @@ model SkuConversion {
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("sku_conversions")
+}
+
+/// Monthly usage the owner provides per SKU (in QuickBooks units, usually
+/// cases). Months of supply uses the greater of this and the last 3 full
+/// months' average sales.
+model SkuUsage {
+  sku          String   @id
+  monthlyUnits Decimal  @map("monthly_units") @db.Decimal(12, 2)
+  updatedBy    String   @map("updated_by")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("sku_usage")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory from Orderwerks (the 3PL)
+// ---------------------------------------------------------------------------
+
+/// Stock for one SKU as Orderwerks last reported it. The whole table is
+/// replaced on every inventory sync.
+model InventoryLevel {
+  sku              String    @id
+  catalogItemGuid  String    @map("catalog_item_guid")
+  name             String?
+  /// qty_on_hand: what can be sold now (reserved and held stock excluded).
+  qtyAvailable     Decimal   @map("qty_available") @db.Decimal(14, 2)
+  /// reserved_qty_on_hand: on the shelf, set aside for open orders.
+  qtyReserved      Decimal   @map("qty_reserved") @db.Decimal(14, 2)
+  /// qty_held_for_backorders
+  qtyHeld          Decimal   @map("qty_held") @db.Decimal(14, 2)
+  /// qty_incoming: on open purchase orders.
+  qtyIncoming      Decimal   @map("qty_incoming") @db.Decimal(14, 2)
+  qtyBackordered   Decimal   @map("qty_backordered") @db.Decimal(14, 2)
+  /// Orderwerks' own min_qty_on_hand, kept for reference.
+  minQtyOnHand     Decimal?  @map("min_qty_on_hand") @db.Decimal(14, 2)
+  sourceUpdatedAt  DateTime? @map("source_updated_at") @db.Timestamptz(3)
+  syncedAt         DateTime  @map("synced_at") @db.Timestamptz(3)
+
+  @@map("inventory_levels")
+}
+
+/// One row per inventory sync. A partial unique index (in the migration)
+/// allows one running row at a time.
+model InventorySyncRun {
+  id          BigInt     @id @default(autoincrement())
+  status      SyncStatus @default(running)
+  triggeredBy String     @map("triggered_by")
+  startedAt   DateTime   @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt  DateTime?  @map("finished_at") @db.Timestamptz(3)
+  /// Stock-tracked SKUs stored in this run.
+  skus        Int        @default(0)
+  apiRequests Int        @default(0) @map("api_requests")
+  note        String?
+  error       String?
+
+  @@index([startedAt])
+  @@map("inventory_sync_runs")
 }
 
 // ---------------------------------------------------------------------------

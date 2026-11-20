@@ -226,3 +226,13 @@ Answer these before step 1 or as Claude Code reaches them. Each has a default it
 - [ ] Should the Amazon variants (for example REMSF99B - AMZ) roll up under their base SKU? Decided: yes, grouped under the base SKU by default, with an optional "Show Amazon variants separately" toggle.
 - [ ] Which host and budget? Default: Vercel plus a managed Postgres (Neon or Supabase), at roughly $0 to $45 a month at this size.
 - [ ] Does the app need its own domain (for example sales.remedium-usa.com)? Default: the host's free subdomain.
+
+## Inventory dashboard
+
+A second page, **Inventory** (`/inventory`), shows stock from the 3PL, Orderwerks, next to sales from QuickBooks.
+
+- **Data:** an hourly cron (`/api/inventory-sync`, plus Refresh inventory now on the admin page) reads every catalog item from the Orderwerks REST API (`GET /v1/catalogs`, `GET /v1/catalog/{guid}/catalog_items`, API key and secret headers) and replaces `inventory_levels` with the stock-tracked SKUs: available (`qty_on_hand`), reserved, held, on open POs (`qty_incoming`) and backordered. Unit cost is the QuickBooks item's PurchaseCost (`items.purchase_cost`). If Orderwerks counts eaches, set `ORDERWERKS_QTY_UNIT=eaches` and the page converts to cases with `sku_conversions`.
+- **Monthly usage:** the greater of the owner's uploaded usage table (`sku_usage`, admin page, CSV with `sku,monthly_usage` in cases per month) and the average cases invoiced over the last 3 full calendar months, net of credit memos.
+- **Months on hand:** available ÷ monthly usage.
+- **Reorder rule:** a PO takes 90 days to arrive and stock must never fall below 3 months, so a SKU is **Order now** when available + on open POs is under (3 + 90 ÷ 30.44 ≈ 5.96) months of usage. The suggested order brings it back to that level, and the order-by date is when it gets there at the current pace. **Below 3 months** means available stock alone is under the floor. **Order within 30 days** gives notice a month ahead.
+- **Views:** reorder alerts, inventory value (on hand × cost) by line, and on hand by SKU, with the product-line filter and a cases/eaches toggle.

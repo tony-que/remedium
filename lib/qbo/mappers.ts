@@ -42,6 +42,8 @@ export interface QboItem {
   FullyQualifiedName?: string;
   Type?: string;
   Active?: boolean;
+  /** Cost per unit the company pays, used for inventory value. */
+  PurchaseCost?: number;
   status?: string;
 }
 
@@ -157,6 +159,8 @@ export function mapItem(item: QboItem) {
     isProduct: p.isProduct,
     itemType: item.Type ?? null,
     active: item.Active ?? true,
+    // Kept as a string so the decimal is stored exactly. Null when QuickBooks has none.
+    purchaseCost: typeof item.PurchaseCost === "number" && Number.isFinite(item.PurchaseCost) ? String(item.PurchaseCost) : null,
   };
 }
 
