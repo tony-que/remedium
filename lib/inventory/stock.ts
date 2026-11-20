@@ -12,7 +12,7 @@ export interface StockRow {
   qtyAvailable: number;
   /** QtyOnSalesOrder */
   qtyReserved: number;
-  /** QtyOnPurchaseOrder */
+  /** QtyOnPurchaseOrder (QuickBooks leaves it empty; the sync fills this from open POs). */
   qtyIncoming: number;
   /** ReorderPoint, or null. */
   reorderPoint: number | null;

@@ -1,4 +1,5 @@
 import type { QboCustomer, QboDoc, QboItem } from "@/lib/qbo/mappers";
+import type { QboBill, QboPurchaseOrder } from "@/lib/inventory/purchase-orders";
 
 // An in-memory stand-in for Intuit's token endpoint and Accounting API, used
 // as the fetch implementation in sync tests. It copies the real API's
@@ -7,13 +8,15 @@ import type { QboCustomer, QboDoc, QboItem } from "@/lib/qbo/mappers";
 // * STARTPOSITION / MAXRESULTS paging and SELECT COUNT(*)
 // * CDC returns records changed since a time, deleted ones as tombstones
 
-type Entity = "Invoice" | "CreditMemo" | "Item" | "Customer";
+type Entity = "Invoice" | "CreditMemo" | "Item" | "Customer" | "PurchaseOrder" | "Bill";
 
 export class FakeQbo {
   invoices = new Map<string, QboDoc>();
   creditMemos = new Map<string, QboDoc>();
   items = new Map<string, QboItem>();
   customers = new Map<string, QboCustomer>();
+  purchaseOrders = new Map<string, QboPurchaseOrder>();
+  bills = new Map<string, QboBill>();
   /** Deleted documents: entity, id, when. */
   tombstones: { entity: Entity; id: string; at: Date }[] = [];
 
@@ -42,8 +45,15 @@ export class FakeQbo {
     return this.clock;
   }
 
-  private store(entity: Entity): Map<string, QboDoc | QboItem | QboCustomer> {
-    return { Invoice: this.invoices, CreditMemo: this.creditMemos, Item: this.items, Customer: this.customers }[entity];
+  private store(entity: Entity): Map<string, QboDoc | QboItem | QboCustomer | QboPurchaseOrder | QboBill> {
+    return {
+      Invoice: this.invoices,
+      CreditMemo: this.creditMemos,
+      Item: this.items,
+      Customer: this.customers,
+      PurchaseOrder: this.purchaseOrders,
+      Bill: this.bills,
+    }[entity];
   }
 
   /** Adds or edits a document, stamping LastUpdatedTime with the fake clock. */
@@ -97,7 +107,7 @@ export class FakeQbo {
     );
     if (!m) throw new Error(`FakeQbo can't parse query: ${q}`);
     const [, sel, entity, where, orderBy, start, max] = m;
-    let rows = [...this.store(entity as Entity).values()] as (QboDoc & QboItem)[];
+    let rows = [...this.store(entity as Entity).values()] as unknown as (QboDoc & QboItem)[];
     if (where?.startsWith("TxnDate >= ")) {
       const d = where.match(/'(.+)'/)![1];
       rows = rows.filter((r) => (r.TxnDate ?? "") >= d);
@@ -114,7 +124,7 @@ export class FakeQbo {
 
   private cdc(entities: string[], since: Date) {
     const blocks = entities.map((entity) => {
-      const live = ([...this.store(entity as Entity).values()] as QboDoc[]).filter(
+      const live = ([...this.store(entity as Entity).values()] as unknown as QboDoc[]).filter(
         (r) => new Date(r.MetaData?.LastUpdatedTime ?? 0) >= since,
       );
       const dead = this.tombstones

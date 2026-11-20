@@ -3,18 +3,18 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { saveConnection } from "@/lib/qbo/connection";
 import { runInventorySync } from "@/lib/inventory/sync";
-import { inventoryRows } from "@/lib/inventory/queries";
+import { inventoryRows, openPurchaseOrders } from "@/lib/inventory/queries";
 import { replaceUsage } from "@/lib/usage";
 import { REORDER_MONTHS } from "@/lib/inventory/plan";
 import { FakeQbo } from "./helpers/fake-qbo";
 
-// Inventory sync from a fake QuickBooks, then the dashboard rows built from
+// Inventory sync from a fake QuickBooks (items, open POs and bills), then the dashboard rows built from
 // stock, cost, conversions, monthly usage and recent sales.
 
 const TODAY = "2026-11-20"; // last 3 full months: Aug 1 – Oct 31
 const qbo = new FakeQbo();
 
-const TABLES = Prisma.sql`TRUNCATE inventory_levels, inventory_sync_runs, sku_usage, invoice_lines, invoices, items, customers, sku_conversions, qbo_connection, audit_log RESTART IDENTITY CASCADE`;
+const TABLES = Prisma.sql`TRUNCATE inventory_levels, open_po_lines, inventory_sync_runs, sku_usage, invoice_lines, invoices, items, customers, sku_conversions, qbo_connection, audit_log RESTART IDENTITY CASCADE`;
 
 function sync() {
   return runInventorySync({ trigger: "test", fetchImpl: qbo.fetch, sleep: async () => {}, now: () => qbo.now(), pageSize: 2 });
@@ -38,9 +38,40 @@ async function invoice(id: string, date: string, item: string, qty: number) {
 
 beforeAll(async () => {
   await prisma.$executeRaw(TABLES);
-  qbo.items.set("i1", { Id: "i1", FullyQualifiedName: "Wound Care:REMSF99B", Type: "Inventory", TrackQtyOnHand: true, Active: true, QtyOnHand: 1050, QtyOnSalesOrder: 50, QtyOnPurchaseOrder: 200, PurchaseCost: 64.5, Description: "Foam 9x9" });
+  qbo.items.set("i1", { Id: "i1", FullyQualifiedName: "Wound Care:REMSF99B", Type: "Inventory", TrackQtyOnHand: true, Active: true, QtyOnHand: 1050, QtyOnSalesOrder: 50, PurchaseCost: 64.5, Description: "Foam 9x9" });
   qbo.items.set("i2", { Id: "i2", FullyQualifiedName: "Skin Care:SCAF1003", Type: "Inventory", TrackQtyOnHand: true, Active: true, QtyOnHand: 40 });
   qbo.items.set("i3", { Id: "i3", FullyQualifiedName: "Freight:Shipping", Type: "Service", Active: true });
+  // REMSF99B: 250 ordered, 50 billed → 200 to receive. A closed PO and one for a service item don't count.
+  qbo.purchaseOrders.set("p1", {
+    Id: "p1",
+    DocNumber: "1042",
+    TxnDate: "2026-10-01",
+    DueDate: "2026-12-30",
+    POStatus: "Open",
+    VendorRef: { value: "v1", name: "Acme Mfg" },
+    Line: [
+      { Id: "1", DetailType: "ItemBasedExpenseLineDetail", ItemBasedExpenseLineDetail: { ItemRef: { value: "i1" }, Qty: 250 } },
+      { Id: "2", DetailType: "ItemBasedExpenseLineDetail", ItemBasedExpenseLineDetail: { ItemRef: { value: "i3" }, Qty: 1 } },
+    ],
+  });
+  qbo.purchaseOrders.set("p2", {
+    Id: "p2",
+    TxnDate: "2026-09-01",
+    POStatus: "Closed",
+    Line: [{ Id: "1", DetailType: "ItemBasedExpenseLineDetail", ItemBasedExpenseLineDetail: { ItemRef: { value: "i2" }, Qty: 500 } }],
+  });
+  qbo.bills.set("b1", {
+    Id: "b1",
+    TxnDate: "2026-10-20",
+    Line: [
+      {
+        Id: "1",
+        DetailType: "ItemBasedExpenseLineDetail",
+        ItemBasedExpenseLineDetail: { ItemRef: { value: "i1" }, Qty: 50 },
+        LinkedTxn: [{ TxnId: "p1", TxnType: "PurchaseOrder", TxnLineId: "1" }],
+      },
+    ],
+  });
   qbo.items.set("i4", { Id: "i4", FullyQualifiedName: "Wound Care:REMOLD", Type: "Inventory", TrackQtyOnHand: true, Active: true, QtyOnHand: 1 });
   await saveConnection(
     "admin@example.com",
@@ -67,6 +98,11 @@ describe("inventory", () => {
     expect((await prisma.item.findUniqueOrThrow({ where: { qboId: "i1" } })).purchaseCost?.toString()).toBe("64.5");
     const foam = await prisma.inventoryLevel.findUniqueOrThrow({ where: { sku: "REMSF99B" } });
     expect([foam.qtyAvailable.toString(), foam.qtyReserved.toString(), foam.qtyIncoming.toString(), foam.name]).toEqual(["1000", "50", "200", "Foam 9x9"]);
+
+    expect(await openPurchaseOrders()).toEqual([
+      { sku: "REMSF99B", line: "wound", docNumber: "1042", vendor: "Acme Mfg", txnDate: "2026-10-01", expectedDate: "2026-12-30", ordered: 250, remaining: 200 },
+    ]);
+    expect((await prisma.inventoryLevel.findUniqueOrThrow({ where: { sku: "SCAF1003" } })).qtyIncoming.toString()).toBe("0");
 
     qbo.items.set("i4", { ...qbo.items.get("i4")!, Active: false });
     expect(await sync()).toMatchObject({ status: "succeeded", skus: 2 });
