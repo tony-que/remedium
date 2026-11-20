@@ -307,7 +307,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             <div className="mt-2 flex flex-col gap-2">
               <p>
                 Stock comes from QuickBooks: <em>available</em> is quantity on hand less what&apos;s on open sales orders (<em>reserved</em>), and{" "}
-                <em>on open POs</em> is what&apos;s still to receive on open QuickBooks purchase orders: each line&apos;s quantity less what&apos;s been billed against it. Closed POs don&apos;t count. Only items that track quantity on hand appear. Cost is
+                <em>on open POs</em> is what&apos;s still to receive on open QuickBooks purchase orders: each line&apos;s quantity less what&apos;s been billed against it. Closed POs don&apos;t count. Only items that track quantity on hand appear, and Amazon variants (SKUs ending in -AMZ) are left out. Cost is
                 each item&apos;s purchase cost in QuickBooks.
               </p>
               <p>
