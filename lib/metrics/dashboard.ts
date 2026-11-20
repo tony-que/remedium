@@ -1,7 +1,7 @@
 import "server-only";
 import type { Filters } from "./filters";
 import {
-  byMonth,
+  byPeriod,
   customerName,
   customerTable,
   dataAsOf,
@@ -15,9 +15,9 @@ import {
 
 /** Everything the dashboard page renders, fetched in parallel. */
 export async function getDashboard(f: Filters) {
-  const [totals, months, skus, customers, heat, missing, asOf, customerLabel] = await Promise.all([
+  const [totals, periods, skus, customers, heat, missing, asOf, customerLabel] = await Promise.all([
     totalsWithChange(f),
-    byMonth(f),
+    byPeriod(f),
     skuTable(f),
     customerTable(f),
     grid(f),
@@ -27,7 +27,7 @@ export async function getDashboard(f: Filters) {
   ]);
   return {
     totals,
-    months,
+    periods,
     skus,
     customers,
     grid: heat,

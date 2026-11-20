@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { parseFilters, type Filters } from "@/lib/metrics/filters";
-import { byMonth, customerTable, flatLines, grid, missingConversions, skuTable, totals, totalsWithChange } from "@/lib/metrics/queries";
+import { byPeriod, customerTable, flatLines, grid, missingConversions, skuTable, totals, totalsWithChange } from "@/lib/metrics/queries";
 import { headline } from "@/lib/metrics/dashboard";
 import { parseItemName } from "@/lib/items";
 
@@ -125,13 +125,40 @@ describe("totals", () => {
   });
 });
 
-describe("by month", () => {
+describe("over time", () => {
   it("groups by invoice calendar month and fills empty months with zeros", async () => {
-    const m = await byMonth(f());
-    expect(m.map((r) => r.month)).toEqual(Array.from({ length: 12 }, (_, i) => `2026-${String(i + 1).padStart(2, "0")}-01`));
+    const m = await byPeriod(f(), "month");
+    expect(m.map((r) => r.period)).toEqual(Array.from({ length: 12 }, (_, i) => `2026-${String(i + 1).padStart(2, "0")}-01`));
     expect(m.slice(4).every((r) => r.sales === 0 && r.units === 0)).toBe(true);
     expect(m[0].sales).toBe(1610 + 100 + 644 + 144);
     expect(m[1].sales).toBeCloseTo(1050 + 659.7 + 72 - 322, 2);
+  });
+
+  it("groups by weeks starting Monday, filling empty weeks", async () => {
+    const w = await byPeriod(f({ from: "2026-01-01", to: "2026-01-31" }), "week");
+    // Jan 1, 2026 is a Thursday, so the first week starts Monday Dec 29.
+    expect(w.map((r) => r.period)).toEqual(["2025-12-29", "2026-01-05", "2026-01-12", "2026-01-19", "2026-01-26"]);
+    // Invoice a (Sat Jan 10) is in the week of Jan 5; invoice b (Tue Jan 20) in the week of Jan 19.
+    expect(w.map((r) => r.sales)).toEqual([0, 1610 + 100, 0, 644 + 144, 0]);
+  });
+
+  it("counts only dates inside the range in a partial first week", async () => {
+    // Invoice o (Wed Dec 31, 2025, $8,050) shares the week of Dec 29 with Jan 1 but is outside the range.
+    const w = await byPeriod(f({ from: "2026-01-01", to: "2026-01-31" }), "week");
+    expect(w[0]).toEqual({ period: "2025-12-29", sales: 0, units: 0, eaches: 0 });
+    const wider = await byPeriod(f({ from: "2025-12-31", to: "2026-01-31" }), "week");
+    expect(wider[0].sales).toBe(8050);
+  });
+
+  it("puts a Sunday in the week that started the Monday before", async () => {
+    // Invoice d is dated Sun Mar 1, 2026.
+    const w = await byPeriod(f({ from: "2026-02-23", to: "2026-03-08" }), "week");
+    expect(w.map((r) => [r.period, r.sales])).toEqual([["2026-02-23", 50], ["2026-03-02", 0]]);
+  });
+
+  it("follows the interval in the filters by default", async () => {
+    expect((await byPeriod(f({ interval: "week", from: "2026-01-05", to: "2026-01-11" })))[0].period).toBe("2026-01-05");
+    expect((await byPeriod(f({ from: "2026-01-05", to: "2026-01-11" })))[0].period).toBe("2026-01-01");
   });
 });
 

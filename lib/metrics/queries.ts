@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
-import { priorYear, type Filters, type Measure } from "./filters";
+import { priorYear, type Filters, type Interval, type Measure } from "./filters";
 
 // Every dashboard number, computed in SQL over the sales_lines view. The
 // browser only formats results. Filter rules (SPEC.md, Calculations):
@@ -69,30 +69,35 @@ export async function totalsWithChange(f: Filters): Promise<TotalsWithChange> {
 
 // ---------------------------------------------------------------------------
 
-export interface MonthRow {
-  month: string; // YYYY-MM-01
+export interface PeriodRow {
+  /** First day of the month, or the Monday that starts the week (YYYY-MM-DD). */
+  period: string;
   sales: number;
   units: number;
   eaches: number;
 }
 
 /**
- * By calendar month of the invoice date (TxnDate is already the company's
- * date, US Central). Every month in the range appears, with zeros for months
- * with no sales, so the time axis never skips.
+ * Totals per calendar month, or per week starting Monday, by invoice date
+ * (TxnDate is already the company's date, US Central). Every period touching
+ * the range appears, with zeros where there were no sales, so the time axis
+ * never skips. The first and last weeks can be partial: only dates inside
+ * the range count.
  */
-export async function byMonth(f: Filters): Promise<MonthRow[]> {
-  const rows = await prisma.$queryRaw<{ month: Date; sales: Prisma.Decimal | null; units: Prisma.Decimal | null; eaches: Prisma.Decimal | null }[]>`
-    WITH months AS (
-      SELECT generate_series(date_trunc('month', ${f.from}::date), date_trunc('month', ${f.to}::date), interval '1 month')::date AS month
+export async function byPeriod(f: Filters, interval: Interval = f.interval): Promise<PeriodRow[]> {
+  const unit = Prisma.raw(interval === "week" ? "'week'" : "'month'");
+  const step = Prisma.raw(interval === "week" ? "interval '1 week'" : "interval '1 month'");
+  const rows = await prisma.$queryRaw<{ period: Date; sales: Prisma.Decimal | null; units: Prisma.Decimal | null; eaches: Prisma.Decimal | null }[]>`
+    WITH periods AS (
+      SELECT generate_series(date_trunc(${unit}, ${f.from}::date), date_trunc(${unit}, ${f.to}::date), ${step})::date AS period
     ),
     sums AS (
-      SELECT month, sum(amount) sales, sum(qty) units, sum(eaches) eaches
+      SELECT date_trunc(${unit}, txn_date)::date AS period, sum(amount) sales, sum(qty) units, sum(eaches) eaches
       FROM sales_lines WHERE ${where(f, { customer: true, sku: true })}
-      GROUP BY month
+      GROUP BY 1
     )
-    SELECT m.month, s.sales, s.units, s.eaches FROM months m LEFT JOIN sums s USING (month) ORDER BY m.month`;
-  return rows.map((r) => ({ month: r.month.toISOString().slice(0, 10), sales: num(r.sales), units: num(r.units), eaches: num(r.eaches) }));
+    SELECT p.period, s.sales, s.units, s.eaches FROM periods p LEFT JOIN sums s USING (period) ORDER BY p.period`;
+  return rows.map((r) => ({ period: r.period.toISOString().slice(0, 10), sales: num(r.sales), units: num(r.units), eaches: num(r.eaches) }));
 }
 
 // ---------------------------------------------------------------------------

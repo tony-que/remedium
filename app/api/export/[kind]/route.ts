@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { apiGate } from "@/lib/access";
 import { csvCell, decimalCell, toCsv } from "@/lib/csv";
 import { parseFilters, todayCentral } from "@/lib/metrics/filters";
-import { byMonth, customerTable, flatLines, grid, skuTable } from "@/lib/metrics/queries";
+import { byPeriod, customerTable, flatLines, grid, skuTable } from "@/lib/metrics/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -52,9 +52,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ kind
       rows = g.rows.map((r) => [csvCell(r.customer), ...g.skus.map((s) => csvCell(r2(r.cells[s] ?? 0)))]);
       break;
     }
-    case "months": {
-      header = ["month", "sales", "cases", "eaches"];
-      rows = (await byMonth(f)).map((r) => [csvCell(r.month.slice(0, 7)), csvCell(r2(r.sales)), csvCell(r2(r.units)), csvCell(r2(r.eaches))]);
+    case "months":
+    case "weeks": {
+      const weekly = kind === "weeks";
+      header = [weekly ? "week_starting" : "month", "sales", "cases", "eaches"];
+      rows = (await byPeriod(f, weekly ? "week" : "month")).map((r) => [csvCell(weekly ? r.period : r.period.slice(0, 7)), csvCell(r2(r.sales)), csvCell(r2(r.units)), csvCell(r2(r.eaches))]);
       break;
     }
     default:

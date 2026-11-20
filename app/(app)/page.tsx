@@ -5,7 +5,7 @@ import { measureOf } from "@/lib/metrics/queries";
 import { DashboardNav } from "@/components/dashboard/nav";
 import { FiltersBar } from "@/components/dashboard/filters-bar";
 import { TotalsCards } from "@/components/dashboard/totals-cards";
-import { MonthChart, TopBars, type TopBarRow } from "@/components/dashboard/charts";
+import { PeriodChart, TopBars, type TopBarRow } from "@/components/dashboard/charts";
 import { CustomerTable, SkuTable } from "@/components/dashboard/tables";
 import { HeatGrid } from "@/components/dashboard/heat-grid";
 import { MEASURE_LABEL } from "@/components/format";
@@ -66,8 +66,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <FiltersBar today={today} customerLabel={d.customerLabel} />
           <TotalsCards totals={d.totals} />
 
-          <Card title={`${m} by month`} subtitle="Hover a month for dollars and cases">
-            <MonthChart rows={d.months} measure={f.measure} />
+          <Card
+            title={`${m} by ${f.interval}`}
+            subtitle={f.interval === "week" ? "Weeks start Monday · hover a week for dollars and cases" : "Hover a month for dollars and cases"}
+          >
+            <PeriodChart rows={d.periods} measure={f.measure} interval={f.interval} from={f.from} to={f.to} />
+            <p className="text-right text-xs text-muted">
+              <a href={exportHref(f.interval === "week" ? "weeks" : "months")} className="underline underline-offset-2 hover:text-foreground">
+                Download CSV
+              </a>
+            </p>
           </Card>
 
           <div className="grid gap-5 lg:grid-cols-2">

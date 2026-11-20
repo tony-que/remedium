@@ -4,6 +4,9 @@
 export const MEASURES = ["sales", "units", "eaches"] as const;
 export type Measure = (typeof MEASURES)[number];
 
+export const INTERVALS = ["month", "week"] as const;
+export type Interval = (typeof INTERVALS)[number];
+
 export const TIME_ZONE = "America/Chicago";
 
 export interface Filters {
@@ -19,6 +22,8 @@ export interface Filters {
   excludeZero: boolean;
   /** Show "REMSF99B - AMZ" separately instead of under REMSF99B. */
   amazonSeparate: boolean;
+  /** Bars in the over-time chart: calendar months, or weeks starting Monday. */
+  interval: Interval;
 }
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -106,6 +111,7 @@ export function parseFilters(params: Params, today = todayCentral()): Filters {
     sku: sku && sku.length <= 120 ? sku : null,
     excludeZero: get(params, "zero") === "exclude",
     amazonSeparate: get(params, "amazon") === "separate",
+    interval: get(params, "interval") === "week" ? "week" : "month",
   };
 }
 
@@ -119,6 +125,7 @@ export function filtersToQuery(f: Filters): string {
   if (f.sku) q.set("sku", f.sku);
   if (f.excludeZero) q.set("zero", "exclude");
   if (f.amazonSeparate) q.set("amazon", "separate");
+  if (f.interval === "week") q.set("interval", "week");
   return q.toString();
 }
 

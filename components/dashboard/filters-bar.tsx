@@ -1,6 +1,6 @@
 "use client";
 
-import { activePreset, MEASURES, PRESET_LABELS, presetRange, type Preset } from "@/lib/metrics/filters";
+import { activePreset, INTERVALS, MEASURES, PRESET_LABELS, presetRange, type Preset } from "@/lib/metrics/filters";
 import { MEASURE_LABEL } from "@/components/format";
 import { useNav } from "./nav";
 
@@ -70,6 +70,23 @@ export function FiltersBar({ today, customerLabel }: { today: string; customerLa
                 className={`${segBase} ${on ? "z-10 border-foreground bg-foreground text-background" : "bg-surface hover:bg-foreground/5"}`}
               >
                 {MEASURE_LABEL[m]}
+              </button>
+            );
+          })}
+        </div>
+
+        <div role="group" aria-label="Chart by month or week" className="flex">
+          {INTERVALS.map((i) => {
+            const on = f.interval === i;
+            return (
+              <button
+                key={i}
+                type="button"
+                aria-pressed={on}
+                onClick={() => update({ interval: i })}
+                className={`${segBase} ${on ? "z-10 border-foreground bg-foreground text-background" : "bg-surface hover:bg-foreground/5"}`}
+              >
+                {i === "month" ? "By month" : "By week"}
               </button>
             );
           })}

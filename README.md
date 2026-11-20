@@ -327,13 +327,17 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://<your app's domain>/api/syn
 (`lib/metrics/queries.ts`); the browser only formats and draws.
 
 - **Filters** live in the URL (`from`, `to`, `measure`, `customer`, `sku`,
-  `zero=exclude`, `amazon=separate`), so a link reproduces the view. Presets:
+  `zero=exclude`, `amazon=separate`, `interval=week`), so a link reproduces the view. Presets:
   Year to date, Last 90 days, Last year, Same period last year. Dates are
   compared with each invoice's date, and "today" is US Central.
 - **Filter rules:** a customer filter narrows the SKU views, a SKU filter
   narrows the customer views, and the totals, monthly chart and grid apply
   both. Click a bar, a table row or a grid heading to filter, and click it
   again (or the chip's ✕) to clear.
+- **Over time:** the chart shows months by default, or weeks starting Monday
+  with **By week**. Every month or week touching the range appears, zeros
+  included. A first or last week only partly inside the range counts only
+  those dates, and its tooltip says so.
 - **Totals** show Sales $, Cases, Eaches, Invoices and Customers, each against
   the same dates a year earlier (Feb 29 maps to Feb 28).
 - **SKU views** (Top SKUs, Every SKU, the grid) show product items only, and
@@ -345,7 +349,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://<your app's domain>/api/syn
 - **Eaches** = cases × each item's own SKU conversion. A banner names any
   product SKU sold in the range without one.
 - **Exports:** each table, the grid, months, and every line behind the totals
-  (`/api/export/{skus,customers,grid,months,lines}` with the same query
+  (`/api/export/{skus,customers,grid,months,weeks,lines}` with the same query
   string). Text that a spreadsheet would run as a formula is defused.
 - **Admin page** additions: eaches conversions (edit, add, remove, filter to
   the 26 unconfirmed ones) and a per-item product toggle that the sync keeps.

@@ -23,6 +23,12 @@ export const MEASURE_LABEL: Record<MeasureKey, string> = { sales: "Sales $", uni
 export const formatMeasure = (m: MeasureKey, n: number) => (m === "sales" ? money0(n) : qty(n));
 export const compactMeasure = (m: MeasureKey, n: number) => (m === "sales" ? compactMoney(n) : compactQty(n));
 
+/** "Mar 2" or "Mar 2, 2026" from "2026-03-02" */
+export function dayLabel(ymd: string, withYear = false) {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: withYear ? "numeric" : undefined, timeZone: "UTC" });
+}
+
 /** "Jan 2026" from "2026-01-01" */
 export function monthLabel(ymd: string, withYear = true) {
   const d = new Date(`${ymd}T00:00:00Z`);

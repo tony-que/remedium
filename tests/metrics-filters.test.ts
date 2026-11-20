@@ -13,15 +13,22 @@ describe("parseFilters", () => {
       sku: null,
       excludeZero: false,
       amazonSeparate: false,
+      interval: "month",
     });
+  });
+
+  it("reads the week interval, and ignores anything else", () => {
+    expect(parseFilters({ interval: "week" }, TODAY).interval).toBe("week");
+    expect(parseFilters({ interval: "day" }, TODAY).interval).toBe("month");
+    expect(filtersToQuery(parseFilters({ interval: "week" }, TODAY))).toBe("from=2026-01-01&to=2026-11-19&interval=week");
   });
 
   it("reads every filter and round-trips through the query string", () => {
     const f = parseFilters(
-      { from: "2025-03-01", to: "2025-03-31", measure: "eaches", customer: "58", sku: "REMSF99B - AMZ", zero: "exclude", amazon: "separate" },
+      { from: "2025-03-01", to: "2025-03-31", measure: "eaches", customer: "58", sku: "REMSF99B - AMZ", zero: "exclude", amazon: "separate", interval: "week" },
       TODAY,
     );
-    expect(f).toEqual({ from: "2025-03-01", to: "2025-03-31", measure: "eaches", customer: "58", sku: "REMSF99B - AMZ", excludeZero: true, amazonSeparate: true });
+    expect(f).toEqual({ from: "2025-03-01", to: "2025-03-31", measure: "eaches", customer: "58", sku: "REMSF99B - AMZ", excludeZero: true, amazonSeparate: true, interval: "week" });
     expect(parseFilters(new URLSearchParams(filtersToQuery(f)), TODAY)).toEqual(f);
   });
 

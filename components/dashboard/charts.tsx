@@ -1,8 +1,9 @@
 "use client";
 
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { MonthRow } from "@/lib/metrics/queries";
-import { compactMeasure, formatMeasure, MEASURE_LABEL, money, monthLabel, qty, type MeasureKey } from "@/components/format";
+import type { PeriodRow } from "@/lib/metrics/queries";
+import type { Interval } from "@/lib/metrics/filters";
+import { compactMeasure, dayLabel, formatMeasure, MEASURE_LABEL, money, monthLabel, qty, type MeasureKey } from "@/components/format";
 import { useNav } from "./nav";
 
 // Single-series bar charts: one blue, no legend (the card title names the
@@ -15,22 +16,54 @@ function TooltipBox({ children }: { children: React.ReactNode }) {
   return <div className="rounded-md border border-line bg-surface px-3 py-2 text-sm shadow-md">{children}</div>;
 }
 
-export function MonthChart({ rows, measure }: { rows: MonthRow[]; measure: MeasureKey }) {
+function addDays(ymd: string, n: number) {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Sales over time, one bar per month or per week (weeks start Monday). */
+export function PeriodChart({
+  rows,
+  measure,
+  interval,
+  from,
+  to,
+}: {
+  rows: PeriodRow[];
+  measure: MeasureKey;
+  interval: Interval;
+  from: string;
+  to: string;
+}) {
   if (rows.length === 0) return <p className="py-10 text-center text-sm text-muted">No sales in this range.</p>;
-  const multiYear = new Set(rows.map((r) => r.month.slice(0, 4))).size > 1;
+  const multiYear = new Set(rows.map((r) => r.period.slice(0, 4))).size > 1;
+  const weekly = interval === "week";
+  const tick = (p: string) => (weekly ? dayLabel(p, false) : monthLabel(p, multiYear));
+  /** Tooltip heading, noting a first or last week that's only partly in the range. */
+  const heading = (p: string) => {
+    if (!weekly) return monthLabel(p);
+    const end = addDays(p, 6);
+    const partial = p < from || end > to;
+    const shownFrom = p < from ? from : p;
+    const shownTo = end > to ? to : end;
+    return partial
+      ? `Week of ${dayLabel(p, true)} (partial: ${dayLabel(shownFrom)}–${dayLabel(shownTo)} only)`
+      : `Week of ${dayLabel(p, true)}`;
+  };
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
+        <BarChart data={rows} margin={{ top: 8, right: 4, bottom: 0, left: 4 }} barCategoryGap={weekly ? 1 : "10%"}>
           <CartesianGrid vertical={false} stroke="var(--grid)" strokeWidth={1} />
           <XAxis
-            dataKey="month"
-            tickFormatter={(m: string) => monthLabel(m, multiYear)}
+            dataKey="period"
+            tickFormatter={tick}
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={{ stroke: "var(--axis)" }}
             interval="preserveStartEnd"
-            minTickGap={8}
+            minTickGap={weekly ? 16 : 8}
           />
           <YAxis
             tickFormatter={(n: number) => compactMeasure(measure, n)}
@@ -42,7 +75,7 @@ export function MonthChart({ rows, measure }: { rows: MonthRow[]; measure: Measu
           <Tooltip
             cursor={{ fill: "var(--foreground)", fillOpacity: 0.05 }}
             content={({ active, payload }) => {
-              const r = active && payload?.[0]?.payload ? (payload[0].payload as MonthRow) : null;
+              const r = active && payload?.[0]?.payload ? (payload[0].payload as PeriodRow) : null;
               if (!r) return null;
               return (
                 <TooltipBox>
@@ -50,7 +83,7 @@ export function MonthChart({ rows, measure }: { rows: MonthRow[]; measure: Measu
                   <p className="tabular text-secondary">
                     {qty(r.units)} cases · {qty(r.eaches)} eaches
                   </p>
-                  <p className="text-xs text-muted">{monthLabel(r.month)}</p>
+                  <p className="text-xs text-muted">{heading(r.period)}</p>
                 </TooltipBox>
               );
             }}
