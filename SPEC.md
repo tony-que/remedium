@@ -81,7 +81,7 @@ Plus `allowed_users` (email, role) and `qbo_connection` (realm id, encrypted tok
 
 **Credit memos:** store them in `invoices` and `invoice_lines` with a `doc_type` column (`invoice` or `credit_memo`). The `sales_lines` view returns credit memo lines with qty and amount made negative, so every sum nets them out automatically.
 
-**Non-product items:** add `items.is_product` (boolean). It is false for Product Partnership and Profit Share Services, Shipping, Research and Development, DISCOUNT and any item with no category, and the admin can flip it per item on the admin page.
+**Non-product items:** add `items.is_product` (boolean). It is false for Product Partnership and Profit Share Services, Shipping, Research and Development and DISCOUNT (with or without a category), true for every other item, including items with no category such as HOMECARE MATTRESS, and the admin can flip it per item on the admin page.
 
 **Eaches conversion:** add a `sku_conversions` table (`sku` primary key, `eaches_per_unit` integer, `updated_by`, `updated_at`). Seed it from the owner's conversion table (54 SKUs as of 2026-11-19, in `sku_eaches_conversion.csv`), and let the admin edit it on the admin page.
 

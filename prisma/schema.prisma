@@ -85,7 +85,7 @@ model Item {
   /// SKU with any "-AMZ" / " - AMZ" suffix and "-3PK"-style pack code removed.
   baseSku             String   @map("base_sku")
   isPackVariant       Boolean  @default(false) @map("is_pack_variant")
-  /// False for service, shipping and discount items and items with no category.
+  /// False for the named non-product items (profit share services, shipping, R&D, discount); the admin can override it.
   isProduct           Boolean  @default(true) @map("is_product")
   /// True once the admin has set is_product by hand; the sync then leaves it alone.
   isProductSetByAdmin Boolean  @default(false) @map("is_product_set_by_admin")
