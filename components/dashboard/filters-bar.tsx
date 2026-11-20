@@ -1,6 +1,6 @@
 "use client";
 
-import { activePreset, INTERVALS, MEASURES, PRESET_LABELS, presetRange, type Preset } from "@/lib/metrics/filters";
+import { activePreset, INTERVALS, MEASURES, PRESET_LABELS, PRODUCT_LINE_LABELS, PRODUCT_LINES, presetRange, type Preset } from "@/lib/metrics/filters";
 import { MEASURE_LABEL } from "@/components/format";
 import { useNav } from "./nav";
 
@@ -18,6 +18,24 @@ export function FiltersBar({ today, customerLabel }: { today: string; customerLa
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+        <div role="group" aria-label="Product line" className="flex flex-wrap">
+          {([null, ...PRODUCT_LINES] as const).map((line) => {
+            const on = f.line === line;
+            return (
+              <button
+                key={line ?? "all"}
+                type="button"
+                aria-pressed={on}
+                // A SKU from another line would leave the page empty, so clear it.
+                onClick={() => update({ line, sku: null })}
+                className={`${segBase} ${on ? "z-10 border-foreground bg-foreground text-background" : "bg-surface hover:bg-foreground/5"}`}
+              >
+                {line ? PRODUCT_LINE_LABELS[line] : "All lines"}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1 text-xs text-secondary">
             From

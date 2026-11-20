@@ -7,6 +7,15 @@ export type Measure = (typeof MEASURES)[number];
 export const INTERVALS = ["month", "week"] as const;
 export type Interval = (typeof INTERVALS)[number];
 
+export const PRODUCT_LINES = ["wound", "skin", "support"] as const;
+export type ProductLine = (typeof PRODUCT_LINES)[number];
+
+export const PRODUCT_LINE_LABELS: Record<ProductLine, string> = {
+  wound: "Wound Care",
+  skin: "Skincare",
+  support: "Support Surfaces",
+};
+
 export const TIME_ZONE = "America/Chicago";
 
 export interface Filters {
@@ -24,6 +33,8 @@ export interface Filters {
   amazonSeparate: boolean;
   /** Bars in the over-time chart: calendar months, or weeks starting Sunday. */
   interval: Interval;
+  /** Product line (by SKU prefix), or null for all lines. A line leaves out non-product items everywhere. */
+  line: ProductLine | null;
 }
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -103,6 +114,7 @@ export function parseFilters(params: Params, today = todayCentral()): Filters {
   const measure = get(params, "measure");
   const customer = get(params, "customer");
   const sku = get(params, "sku");
+  const line = get(params, "line");
   return {
     from,
     to,
@@ -112,6 +124,7 @@ export function parseFilters(params: Params, today = todayCentral()): Filters {
     excludeZero: get(params, "zero") === "exclude",
     amazonSeparate: get(params, "amazon") === "separate",
     interval: get(params, "interval") === "week" ? "week" : "month",
+    line: (PRODUCT_LINES as readonly string[]).includes(line ?? "") ? (line as ProductLine) : null,
   };
 }
 
@@ -126,6 +139,7 @@ export function filtersToQuery(f: Filters): string {
   if (f.excludeZero) q.set("zero", "exclude");
   if (f.amazonSeparate) q.set("amazon", "separate");
   if (f.interval === "week") q.set("interval", "week");
+  if (f.line) q.set("line", f.line);
   return q.toString();
 }
 

@@ -109,7 +109,7 @@ One dashboard page carries the whole tool, built to match the prototype, plus a 
 **Dashboard (all signed-in users):**
 
 1. **Header:** title, "Data as of <last sync time>", and one sentence written from the data, for example "REMSF99B leads with 45.7% of sales dollars; Lakeland Supplychain RDC is the largest customer at 51.3%."
-2. **Filters bar:** From and To date pickers; presets for Year to date, Last 90 days, Last year and Same period last year; a Sales $ / Units / Eaches toggle; and chips showing an active customer or SKU filter, each with an ✕ to clear it. Filters live in the URL query string so a link reproduces the view.
+2. **Filters bar:** product-line buttons (All lines, Wound Care, Skincare, Support Surfaces; see Calculations); From and To date pickers; presets for Year to date, Last 90 days, Last year and Same period last year; a Sales $ / Units / Eaches toggle; and chips showing an active customer or SKU filter, each with an ✕ to clear it. Filters live in the URL query string so a link reproduces the view.
 3. **Totals cards:** Sales $, Units sold, Eaches sold, Invoices, Customers. Each shows the change against the same period last year, colored by whether it's good.
 4. **By month:** a bar chart of the chosen measure, with a tooltip giving dollars and units.
 5. **Top SKUs and Top customers:** horizontal bar charts of the top 12 by the chosen measure. Clicking a bar filters the rest of the page, and clicking it again clears the filter.
@@ -141,6 +141,8 @@ Every metric is computed in SQL over the `sales_lines` view for the filtered dat
 **Filter rules:** a customer filter narrows the SKU views, and a SKU filter narrows the customer views. Totals, the monthly chart and the grid apply both filters. Months are grouped by the invoice's calendar month in the company's time zone (US Central).
 
 **Non-product items:** the Top SKUs chart, Every SKU table and SKU × customer grid show only lines where `is_product` is true, and their % of $ is computed over product lines only. Totals, the monthly chart and the customer views still include every line, and a note under the SKU table gives the dollars left out (for example "$270,331 in non-product items not shown").
+
+**Product lines:** each product SKU belongs to one line by its first letters, ignoring case: REM or RH is Wound Care, SC is Skincare, and every other product SKU is Support Surfaces. Picking a line narrows every view, totals included, and leaves non-product items out of all of them. `sales_lines.product_line` holds the line (null for non-product lines).
 
 **Eaches:** Units × the SKU's `eaches_per_unit` from `sku_conversions`, summed the same way as Units (net of credit memo quantities). A SKU with no conversion counts as 0 eaches and is named in a warning at the top of the dashboard.
 

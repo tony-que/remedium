@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baseSkuOf, parseItemName } from "@/lib/items";
+import { baseSkuOf, parseItemName, productLineOf } from "@/lib/items";
 
 describe("parseItemName", () => {
   it("splits SKU and category from a nested name", () => {
@@ -63,5 +63,21 @@ describe("baseSkuOf", () => {
 
   it("never reduces a SKU to an empty string", () => {
     expect(baseSkuOf("-AMZ").baseSku).toBe("-AMZ");
+  });
+});
+
+describe("productLineOf", () => {
+  it.each([
+    ["REMSF99B", "wound"],
+    ["REMSF99B - AMZ", "wound"],
+    ["RHCFGA45", "wound"],
+    ["rhcfga22", "wound"],
+    ["SCAF1003", "skin"],
+    ["SCFC0404-3PK-AMZ", "skin"],
+    ["SCZP1004", "skin"],
+    ["HOMECARE MATTRESS", "support"],
+    ["HOMECARE MATTRESS-AMZ", "support"],
+  ] as const)("puts %s in %s", (sku, line) => {
+    expect(productLineOf(sku)).toBe(line);
   });
 });
