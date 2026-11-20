@@ -21,7 +21,8 @@ export interface StockRow {
 const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 /**
- * Active QuickBooks items that track quantity on hand. A SKU that appears
+ * Active QuickBooks items that track quantity on hand, other than Amazon
+ * variants (SKUs ending in -AMZ). A SKU that appears
  * twice (two active items with the same name in different categories) is
  * the same stock in QuickBooks' eyes only once, so it's kept once.
  */
@@ -33,7 +34,9 @@ export function stockRows(items: QboItem[]): { rows: StockRow[]; duplicateSkus: 
     if (!(it.TrackQtyOnHand === true || (it.TrackQtyOnHand === undefined && it.Type === "Inventory"))) continue;
     const fullName = (it.FullyQualifiedName ?? it.Name ?? "").trim();
     if (!it.Id || !fullName) continue;
-    const sku = parseItemName(fullName).sku;
+    const { sku, isAmazonVariant } = parseItemName(fullName);
+    // Amazon variants ("-AMZ" SKUs) are left off the Inventory dashboard.
+    if (isAmazonVariant) continue;
     if (bySku.has(sku)) {
       duplicates.add(sku);
       continue;
