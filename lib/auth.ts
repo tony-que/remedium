@@ -59,6 +59,12 @@ if (entraEnabled) {
       clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
       clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
       issuer: ENTRA_MULTI_TENANT_ISSUER,
+      // Someone who first signed in by email link already has an account with
+      // this address; let their Microsoft sign-in use it rather than fail with
+      // OAuthAccountNotLinked. Safe here because only the allowed tenants
+      // (our own companies) get past signIn below, so the email comes from a
+      // directory our own admins control.
+      allowDangerousEmailAccountLinking: true,
       // Name and email only: no Microsoft Graph access, no profile photo.
       authorization: { params: { scope: "openid profile email" } },
       profile(profile) {
