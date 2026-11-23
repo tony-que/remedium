@@ -3,6 +3,7 @@ import { AuthError } from "next-auth";
 import { devLoginEnabled, entraEnabled, magicLinkEnabled, signIn } from "@/lib/auth";
 import { getAccess } from "@/lib/access";
 import { safeReturnTo } from "@/lib/return-to";
+import { Logo } from "@/components/logo";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-4 py-12">
       <div>
+        <Logo className="mb-6 h-12" />
         <h1 className="text-2xl font-semibold">Remedium Cockpit</h1>
         <p className="mt-1 text-sm opacity-70">Sign in with your work account.</p>
       </div>
