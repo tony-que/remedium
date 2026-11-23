@@ -3,7 +3,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { productLineOf } from "@/lib/items";
 import type { ProductLine } from "@/lib/metrics/filters";
-import { lastThreeFullMonths, plan, type Plan } from "./plan";
+import { lastThreeFullMonths, leadTimeDaysFor, plan, type Plan } from "./plan";
 
 // Inventory rows for the dashboard: QuickBooks stock (quantity on hand, on
 // purchase orders, on sales orders) joined to items (cost, category, product
@@ -74,7 +74,7 @@ export async function inventoryRows(today: string): Promise<InventoryRow[]> {
     const incoming = num(r.qty_incoming);
     const unitCost = numOrNull(r.purchase_cost);
     const providedUsage = numOrNull(r.monthly_units);
-    const p = plan({ available, reserved, held, incoming, providedUsage, soldLast3Months: num(r.sold), unitCost });
+    const p = plan({ available, reserved, held, incoming, providedUsage, soldLast3Months: num(r.sold), unitCost, leadTimeDays: leadTimeDaysFor(r.sku) });
     return {
       ...p,
       sku: r.sku,

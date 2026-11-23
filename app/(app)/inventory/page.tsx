@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireViewer } from "@/lib/access";
 import { PRODUCT_LINE_LABELS, PRODUCT_LINES, todayCentral, type ProductLine } from "@/lib/metrics/filters";
 import { inventoryRows, lastInventorySync, openPurchaseOrders, type InventoryRow } from "@/lib/inventory/queries";
-import { addDaysYmd, FLOOR_MONTHS, LEAD_TIME_DAYS, REORDER_MONTHS, STATUS_LABEL, type Status } from "@/lib/inventory/plan";
+import { addDaysYmd, B_LEAD_TIME_DAYS, FLOOR_MONTHS, LEAD_TIME_DAYS, reorderMonths, STATUS_LABEL, type Status } from "@/lib/inventory/plan";
 import { compactMoney, dayLabel, money, qty } from "@/components/format";
 
 export const dynamic = "force-dynamic";
@@ -106,8 +106,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
           <p className="text-sm text-muted">{asOf}</p>
         </div>
         <p className="text-secondary">
-          Order when stock plus open POs drops below about {REORDER_MONTHS.toFixed(0)} months of usage: {LEAD_TIME_DAYS} days to arrive, and never under{" "}
-          {FLOOR_MONTHS} months on hand.
+          Order when stock plus open POs won&apos;t cover {FLOOR_MONTHS} months of usage plus the lead time: {B_LEAD_TIME_DAYS} days for SKUs ending in B,{" "}
+          {LEAD_TIME_DAYS} days for the rest. Never under {FLOOR_MONTHS} months on hand.
         </p>
       </header>
 
@@ -146,11 +146,11 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Inventory value" value={compactMoney(totalValue)} note={noCost ? `${noCost} SKU${noCost === 1 ? "" : "s"} with no QuickBooks cost left out` : "On hand × QuickBooks cost"} />
             <Stat label={`On hand (${unitLabel})`} value={f.unit === "cases" ? qty(Math.round(rows.reduce((s, r) => s + r.onHand, 0))) : qty(Math.round(rows.reduce((s, r) => s + r.onHand * (r.eachesPerUnit ?? 0), 0)))} note={`${rows.length} SKUs`} />
-            <Stat label="SKUs to order now" value={String(toOrder)} note={`Stock plus open POs under ${REORDER_MONTHS.toFixed(0)} months`} />
+            <Stat label="SKUs to order now" value={String(toOrder)} note={`Stock plus open POs under ${FLOOR_MONTHS} months + lead time`} />
             <Stat label="Below 3 months on hand" value={String(belowFloor)} note="Available stock alone" />
           </div>
 
-          <Card title="Reorder alerts" subtitle={`${alerts.length} SKU${alerts.length === 1 ? "" : "s"} to order now or within 30 days · suggested order brings stock plus open POs back to about ${REORDER_MONTHS.toFixed(0)} months`}>
+          <Card title="Reorder alerts" subtitle={`${alerts.length} SKU${alerts.length === 1 ? "" : "s"} to order now or within 30 days · suggested order brings stock plus open POs back to ${FLOOR_MONTHS} months + lead time`}>
             {alerts.length === 0 ? (
               <p className="text-sm text-secondary">Nothing needs ordering in the next 30 days.</p>
             ) : (
@@ -165,6 +165,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                       <th className="px-2 py-1.5 text-right font-medium">Usage / month</th>
                       <th className="px-2 py-1.5 text-right font-medium">Months on hand</th>
                       <th className="px-2 py-1.5 text-right font-medium">With POs</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Lead time</th>
                       <th className="px-2 py-1.5 text-right font-medium">Suggested order</th>
                       <th className="px-2 py-1.5 font-medium">Order by</th>
                     </tr>
@@ -187,6 +188,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                         </td>
                         <td className="px-2 py-1.5 text-right tabular">{months(r.monthsOnHand)}</td>
                         <td className="px-2 py-1.5 text-right tabular">{months(r.monthsWithIncoming)}</td>
+                        <td className="whitespace-nowrap px-2 py-1.5 text-right tabular">{r.leadTimeDays} days</td>
                         <td className="px-2 py-1.5 text-right font-semibold tabular">{r.suggestedOrder > 0 ? show(r, r.suggestedOrder) : "—"}</td>
                         <td className="whitespace-nowrap px-2 py-1.5">{r.orderInDays === 0 ? "Now" : dayLabel(addDaysYmd(today, r.orderInDays ?? 0), true)}</td>
                       </tr>
@@ -315,8 +317,9 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                 credit memos. Months on hand = available ÷ monthly usage.
               </p>
               <p>
-                A purchase order takes {LEAD_TIME_DAYS} days to arrive and stock should never fall below {FLOOR_MONTHS} months, so a SKU needs ordering when
-                available plus open POs is under {REORDER_MONTHS.toFixed(1)} months of usage. The suggested order brings it back to that level; the order-by
+                A purchase order takes {B_LEAD_TIME_DAYS} days to arrive for SKUs ending in B and {LEAD_TIME_DAYS} days for the rest, and stock should never
+                fall below {FLOOR_MONTHS} months, so a SKU needs ordering when available plus open POs is under{" "}
+                {reorderMonths(B_LEAD_TIME_DAYS).toFixed(1)} months of usage (B SKUs) or {reorderMonths(LEAD_TIME_DAYS).toFixed(1)} months (the rest). The suggested order brings it back to that level; the order-by
                 date is when it will get there at the current pace. &ldquo;Below 3 months&rdquo; means available stock alone is already under the floor.
               </p>
             </div>

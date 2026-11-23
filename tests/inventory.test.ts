@@ -5,7 +5,7 @@ import { saveConnection } from "@/lib/qbo/connection";
 import { runInventorySync } from "@/lib/inventory/sync";
 import { inventoryRows, openPurchaseOrders } from "@/lib/inventory/queries";
 import { replaceUsage } from "@/lib/usage";
-import { REORDER_MONTHS } from "@/lib/inventory/plan";
+import { reorderMonths } from "@/lib/inventory/plan";
 import { FakeQbo } from "./helpers/fake-qbo";
 
 // Inventory sync from a fake QuickBooks (items, open POs and bills), then the dashboard rows built from
@@ -132,8 +132,9 @@ describe("inventory", () => {
     const foam = rows.find((r) => r.sku === "REMSF99B")!;
     expect(foam).toMatchObject({ line: "wound", available: 1000, reserved: 50, incoming: 200, monthlyUsage: 300, usageSource: "sales", eachesPerUnit: 25, unitCost: 64.5 });
     expect(foam.monthsOnHand).toBeCloseTo(1000 / 300, 6);
-    expect(foam.status).toBe("order_now"); // 1,200 with POs is under ~5.96 × 300
-    expect(foam.suggestedOrder).toBe(Math.ceil(REORDER_MONTHS * 300 - 1200));
+    expect(foam.leadTimeDays).toBe(60); // ends in B
+    expect(foam.status).toBe("order_now"); // 1,200 with POs is under ~4.97 × 300
+    expect(foam.suggestedOrder).toBe(Math.ceil(reorderMonths(60) * 300 - 1200));
     expect(foam.value).toBeCloseTo(1050 * 64.5, 6);
 
     expect(rows.find((r) => r.sku === "SCAF1003")).toMatchObject({ line: "skin", status: "no_usage", value: null });
