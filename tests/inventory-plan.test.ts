@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDaysYmd, lastThreeFullMonths, LEAD_TIME_MONTHS, plan, REORDER_MONTHS, type PlanInput } from "@/lib/inventory/plan";
+import { addDaysYmd, lastThreeFullMonths, LEAD_TIME_MONTHS, leadTimeDaysFor, plan, reorderMonths, REORDER_MONTHS, type PlanInput } from "@/lib/inventory/plan";
 
 const base: PlanInput = { available: 0, reserved: 0, held: 0, incoming: 0, providedUsage: null, soldLast3Months: 0, unitCost: null };
 
@@ -65,5 +65,26 @@ describe("dates", () => {
 
   it("adds days across a month end", () => {
     expect(addDaysYmd("2026-11-20", 15)).toBe("2026-12-05");
+  });
+});
+
+describe("lead time by SKU", () => {
+  it("is 60 days for SKUs ending in B and 90 for the rest", () => {
+    expect(leadTimeDaysFor("REMSF99B")).toBe(60);
+    expect(leadTimeDaysFor(" remsf44b ")).toBe(60);
+    expect(leadTimeDaysFor("SCAF1003")).toBe(90);
+    expect(leadTimeDaysFor("REMWBG22")).toBe(90);
+  });
+
+  it("orders against 3 months plus the SKU's lead time", () => {
+    expect(reorderMonths(60)).toBeCloseTo(3 + 60 / 30.4375, 6);
+    expect(reorderMonths(90)).toBeCloseTo(REORDER_MONTHS, 6);
+    // 100/month, 520 in stock: under ~5.96 months with 90 days, but over ~4.97 with 60.
+    const base = { available: 520, reserved: 0, held: 0, incoming: 0, providedUsage: 100, soldLast3Months: 0, unitCost: null };
+    expect(plan(base).status).toBe("order_now");
+    const b = plan({ ...base, leadTimeDays: 60 });
+    expect(b).toMatchObject({ leadTimeDays: 60, suggestedOrder: 0 });
+    expect(b.status).toBe("order_soon");
+    expect(b.reorderPoint).toBeCloseTo(reorderMonths(60) * 100, 6);
   });
 });

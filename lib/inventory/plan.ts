@@ -4,19 +4,32 @@
 // * Monthly usage = the greater of the usage the owner provides and the last
 //   3 full months' average units sold (QuickBooks invoices net of credit memos).
 // * Months on hand = available ÷ monthly usage.
-// * A purchase order takes LEAD_TIME_MONTHS to arrive, and stock must never
-//   fall below FLOOR_MONTHS. So a SKU needs ordering once available plus
-//   on-order drops below (FLOOR + LEAD) months of usage, and the suggested
-//   order brings it back to that level.
+// * A purchase order takes the SKU's lead time to arrive (60 days for SKUs
+//   ending in B, 90 days for the rest), and stock must never fall below
+//   FLOOR_MONTHS. So a SKU needs ordering once available plus on-order drops
+//   below (FLOOR + lead time) months of usage, and the suggested order brings
+//   it back to that level.
 
-/** 90 days from PO to delivery, in months (90 ÷ 30.4375). */
+/** Default lead time: 90 days from PO to delivery. */
 export const LEAD_TIME_DAYS = 90;
+/** Lead time for SKUs ending in B. */
+export const B_LEAD_TIME_DAYS = 60;
 export const DAYS_PER_MONTH = 365.25 / 12;
 export const LEAD_TIME_MONTHS = LEAD_TIME_DAYS / DAYS_PER_MONTH;
 /** Never go below this many months on hand. */
 export const FLOOR_MONTHS = 3;
-/** Order when available + on order is below this many months of usage. */
+/** Order when available + on order is below this many months of usage (default lead time). */
 export const REORDER_MONTHS = FLOOR_MONTHS + LEAD_TIME_MONTHS;
+
+/** Days from PO to delivery for a SKU: 60 when it ends in B, otherwise 90. */
+export function leadTimeDaysFor(sku: string): number {
+  return sku.trim().toUpperCase().endsWith("B") ? B_LEAD_TIME_DAYS : LEAD_TIME_DAYS;
+}
+
+/** Months of usage that stock plus open POs should cover for a lead time. */
+export function reorderMonths(leadTimeDays: number): number {
+  return FLOOR_MONTHS + leadTimeDays / DAYS_PER_MONTH;
+}
 
 export type Status = "below_floor" | "order_now" | "order_soon" | "ok" | "no_usage";
 
@@ -40,9 +53,12 @@ export interface PlanInput {
   soldLast3Months: number;
   /** QuickBooks purchase cost per unit, or null. */
   unitCost: number | null;
+  /** Days from PO to delivery; LEAD_TIME_DAYS when left out. */
+  leadTimeDays?: number;
 }
 
 export interface Plan {
+  leadTimeDays: number;
   onHand: number;
   monthlyUsage: number;
   usageSource: "provided" | "sales" | "none";
@@ -59,6 +75,7 @@ export interface Plan {
 }
 
 export function plan(i: PlanInput): Plan {
+  const leadTimeDays = i.leadTimeDays ?? LEAD_TIME_DAYS;
   const avg = Math.max(0, i.soldLast3Months) / 3;
   const provided = i.providedUsage !== null && i.providedUsage > 0 ? i.providedUsage : 0;
   const usage = Math.max(provided, avg);
@@ -70,6 +87,7 @@ export function plan(i: PlanInput): Plan {
 
   if (usage === 0) {
     return {
+      leadTimeDays,
       onHand,
       monthlyUsage: 0,
       usageSource,
@@ -84,13 +102,14 @@ export function plan(i: PlanInput): Plan {
     };
   }
 
-  const reorderPoint = REORDER_MONTHS * usage;
+  const reorderPoint = reorderMonths(leadTimeDays) * usage;
   const suggestedOrder = position < reorderPoint ? Math.ceil(reorderPoint - position) : 0;
   const orderInDays = Math.max(0, Math.floor(((position - reorderPoint) / usage) * DAYS_PER_MONTH));
   const status: Status =
     available < FLOOR_MONTHS * usage ? "below_floor" : position < reorderPoint ? "order_now" : orderInDays <= 30 ? "order_soon" : "ok";
 
   return {
+    leadTimeDays,
     onHand,
     monthlyUsage: usage,
     usageSource,
