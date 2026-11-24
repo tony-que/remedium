@@ -50,7 +50,7 @@ beforeAll(async () => {
     POStatus: "Open",
     VendorRef: { value: "v1", name: "Acme Mfg" },
     Line: [
-      { Id: "1", DetailType: "ItemBasedExpenseLineDetail", ItemBasedExpenseLineDetail: { ItemRef: { value: "i1" }, Qty: 250 } },
+      { Id: "1", DetailType: "ItemBasedExpenseLineDetail", Amount: 15000, ItemBasedExpenseLineDetail: { ItemRef: { value: "i1" }, Qty: 250, UnitPrice: 60 } },
       { Id: "2", DetailType: "ItemBasedExpenseLineDetail", ItemBasedExpenseLineDetail: { ItemRef: { value: "i3" }, Qty: 1 } },
     ],
   });
@@ -100,7 +100,7 @@ describe("inventory", () => {
     expect([foam.qtyAvailable.toString(), foam.qtyReserved.toString(), foam.qtyIncoming.toString(), foam.name]).toEqual(["1000", "50", "200", "Foam 9x9"]);
 
     expect(await openPurchaseOrders()).toEqual([
-      { sku: "REMSF99B", line: "wound", docNumber: "1042", vendor: "Acme Mfg", txnDate: "2026-10-01", expectedDate: "2026-12-30", ordered: 250, remaining: 200 },
+      { sku: "REMSF99B", line: "wound", docNumber: "1042", vendor: "Acme Mfg", txnDate: "2026-10-01", expectedDate: "2026-12-30", ordered: 250, remaining: 200, amount: 15000, openAmount: 12000 },
     ]);
     expect((await prisma.inventoryLevel.findUniqueOrThrow({ where: { sku: "SCAF1003" } })).qtyIncoming.toString()).toBe("0");
 
