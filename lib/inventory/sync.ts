@@ -130,6 +130,8 @@ export async function runInventorySync(opts: InventorySyncOptions): Promise<Inve
           expectedDate: l.expectedDate ? day(l.expectedDate) : null,
           qtyOrdered: dec(l.ordered),
           qtyRemaining: dec(l.remaining),
+          amount: l.amount === null ? null : dec(l.amount),
+          unitPrice: l.unitPrice === null ? null : new Prisma.Decimal(l.unitPrice.toFixed(4)),
           syncedAt,
         })),
       }),

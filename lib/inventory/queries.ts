@@ -103,6 +103,10 @@ export interface OpenPo {
   expectedDate: string | null;
   ordered: number;
   remaining: number;
+  /** PO line dollar amount, or null. */
+  amount: number | null;
+  /** Dollars still to receive (remaining × unit price), or null. */
+  openAmount: number | null;
 }
 
 /** Open purchase order lines still to receive, soonest expected first. */
@@ -118,6 +122,8 @@ export async function openPurchaseOrders(): Promise<OpenPo[]> {
     expectedDate: d(r.expectedDate),
     ordered: Number(r.qtyOrdered),
     remaining: Number(r.qtyRemaining),
+    amount: r.amount === null ? null : Number(r.amount),
+    openAmount: r.unitPrice === null ? null : Math.round(Number(r.unitPrice) * Number(r.qtyRemaining) * 100) / 100,
   }));
 }
 

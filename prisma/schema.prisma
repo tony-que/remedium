@@ -181,6 +181,9 @@ model OpenPoLine {
   expectedDate DateTime? @map("expected_date") @db.Date
   qtyOrdered   Decimal   @map("qty_ordered") @db.Decimal(14, 2)
   qtyRemaining Decimal   @map("qty_remaining") @db.Decimal(14, 2)
+  /// The PO line's dollar amount, and cost per unit, when QuickBooks has them.
+  amount       Decimal?  @db.Decimal(14, 2)
+  unitPrice    Decimal?  @map("unit_price") @db.Decimal(14, 4)
   syncedAt     DateTime  @map("synced_at") @db.Timestamptz(3)
 
   @@id([poQboId, lineId])

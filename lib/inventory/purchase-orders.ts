@@ -19,7 +19,8 @@ export interface QboLinkedTxn {
 export interface QboItemLine {
   Id?: string;
   DetailType?: string;
-  ItemBasedExpenseLineDetail?: { ItemRef?: QboRef; Qty?: number };
+  Amount?: number;
+  ItemBasedExpenseLineDetail?: { ItemRef?: QboRef; Qty?: number; UnitPrice?: number };
   LinkedTxn?: QboLinkedTxn[];
 }
 
@@ -52,12 +53,20 @@ export interface OpenPoLine {
   ordered: number;
   received: number;
   remaining: number;
+  /** The PO line's dollar amount (ordered quantity × cost), or null. */
+  amount: number | null;
+  /** Cost per unit on the PO line (UnitPrice, else amount ÷ quantity), or null. */
+  unitPrice: number | null;
+  /** Dollars still to receive: remaining × unit price, or null. */
+  openAmount: number | null;
 }
 
 const qtyOf = (l: QboItemLine) => {
   const q = l.ItemBasedExpenseLineDetail?.Qty;
   return typeof q === "number" && Number.isFinite(q) ? q : 0;
 };
+const num = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? n : null);
+const cents = (n: number) => Math.round(n * 100) / 100;
 const ymd = (s: string | undefined) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null);
 
 /** Lines of open purchase orders with something still to receive. */
@@ -98,6 +107,10 @@ export function openPoLines(pos: QboPurchaseOrder[], bills: QboBill[]): OpenPoLi
       }
       const remaining = Math.round((ordered - received) * 100) / 100;
       if (remaining <= 0) return;
+      const given = num(l.ItemBasedExpenseLineDetail?.UnitPrice);
+      const lineAmount = num(l.Amount);
+      const unitPrice = given ?? (lineAmount !== null && ordered !== 0 ? lineAmount / ordered : null);
+      const amount = lineAmount ?? (unitPrice !== null ? cents(unitPrice * ordered) : null);
       out.push({
         poQboId: po.Id,
         lineId,
@@ -109,6 +122,9 @@ export function openPoLines(pos: QboPurchaseOrder[], bills: QboBill[]): OpenPoLi
         ordered,
         received,
         remaining,
+        amount,
+        unitPrice,
+        openAmount: unitPrice !== null ? cents(unitPrice * remaining) : null,
       });
     });
   }

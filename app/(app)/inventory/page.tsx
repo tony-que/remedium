@@ -85,6 +85,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     const r = bySku.get(sku);
     return r ? show(r, cases) : f.unit === "cases" ? qty(cases) : "—";
   };
+  const openDollars = pos.reduce((t, p) => t + (p.openAmount ?? 0), 0);
   const totalValue = rows.reduce((s, r) => s + (r.value ?? 0), 0);
   const noCost = rows.filter((r) => r.value === null && r.onHand > 0).length;
   const toOrder = rows.filter((r) => r.status === "below_floor" || r.status === "order_now").length;
@@ -201,13 +202,13 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
           <Card
             title="Open purchase orders"
-            subtitle={`${pos.length} line${pos.length === 1 ? "" : "s"} still to receive, counted in "On open POs" · soonest expected first · in ${unitLabel}`}
+            subtitle={`${pos.length} line${pos.length === 1 ? "" : "s"} still to receive (${money(openDollars)}), counted in "On open POs" · soonest expected first · quantities in ${unitLabel}`}
           >
             {pos.length === 0 ? (
               <p className="text-sm text-secondary">No open QuickBooks purchase orders with anything left to receive.</p>
             ) : (
               <div className="max-h-[28rem] overflow-auto">
-                <table className="w-full min-w-[48rem] text-left text-sm">
+                <table className="w-full min-w-[60rem] text-left text-sm">
                   <thead className="sticky top-0 bg-surface text-secondary">
                     <tr className="border-b border-line">
                       <th className="px-2 py-1.5 font-medium">PO</th>
@@ -217,6 +218,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                       <th className="px-2 py-1.5 font-medium">Expected</th>
                       <th className="px-2 py-1.5 text-right font-medium">Ordered</th>
                       <th className="px-2 py-1.5 text-right font-medium">To receive</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Line amount</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Open amount</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -229,9 +232,20 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                         <td className="whitespace-nowrap px-2 py-1.5">{p.expectedDate ? dayLabel(p.expectedDate, true) : "—"}</td>
                         <td className="px-2 py-1.5 text-right tabular">{showPo(p.sku, p.ordered)}</td>
                         <td className="px-2 py-1.5 text-right font-semibold tabular">{showPo(p.sku, p.remaining)}</td>
+                        <td className="px-2 py-1.5 text-right tabular">{p.amount === null ? "—" : money(p.amount)}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold tabular">{p.openAmount === null ? "—" : money(p.openAmount)}</td>
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t border-line font-semibold">
+                      <td className="px-2 py-1.5" colSpan={7}>
+                        Total
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular">{money(pos.reduce((t, p) => t + (p.amount ?? 0), 0))}</td>
+                      <td className="px-2 py-1.5 text-right tabular">{money(openDollars)}</td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             )}
