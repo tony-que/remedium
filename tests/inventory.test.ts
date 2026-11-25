@@ -41,7 +41,7 @@ beforeAll(async () => {
   qbo.items.set("i1", { Id: "i1", FullyQualifiedName: "Wound Care:REMSF99B", Type: "Inventory", TrackQtyOnHand: true, Active: true, QtyOnHand: 1050, QtyOnSalesOrder: 50, PurchaseCost: 64.5, Description: "Foam 9x9" });
   qbo.items.set("i2", { Id: "i2", FullyQualifiedName: "Skin Care:SCAF1003", Type: "Inventory", TrackQtyOnHand: true, Active: true, QtyOnHand: 40 });
   qbo.items.set("i3", { Id: "i3", FullyQualifiedName: "Freight:Shipping", Type: "Service", Active: true });
-  // REMSF99B: 250 ordered, 50 billed → 200 to receive. A closed PO and one for a service item don't count.
+  // REMSF99B: 250 ordered, 50 billed → 200 to receive. A closed PO doesn't count; the service item's line is listed but not counted.
   qbo.purchaseOrders.set("p1", {
     Id: "p1",
     DocNumber: "1042",
@@ -99,9 +99,24 @@ describe("inventory", () => {
     const foam = await prisma.inventoryLevel.findUniqueOrThrow({ where: { sku: "REMSF99B" } });
     expect([foam.qtyAvailable.toString(), foam.qtyReserved.toString(), foam.qtyIncoming.toString(), foam.name]).toEqual(["1000", "50", "200", "Foam 9x9"]);
 
-    expect(await openPurchaseOrders()).toEqual([
-      { sku: "REMSF99B", line: "wound", docNumber: "1042", vendor: "Acme Mfg", txnDate: "2026-10-01", expectedDate: "2026-12-30", ordered: 250, remaining: 200, amount: 15000, openAmount: 12000 },
-    ]);
+    const pos = await openPurchaseOrders();
+    expect(pos[0]).toEqual({
+      sku: "REMSF99B",
+      itemName: null,
+      description: null,
+      line: "wound",
+      counted: true,
+      docNumber: "1042",
+      vendor: "Acme Mfg",
+      txnDate: "2026-10-01",
+      expectedDate: "2026-12-30",
+      ordered: 250,
+      remaining: 200,
+      amount: 15000,
+      openAmount: 12000,
+    });
+    // The service item's line is listed too, but not counted in stock.
+    expect(pos.slice(1).map((p) => [p.sku, p.counted, p.remaining])).toEqual([["Shipping", false, 1]]);
     expect((await prisma.inventoryLevel.findUniqueOrThrow({ where: { sku: "SCAF1003" } })).qtyIncoming.toString()).toBe("0");
 
     qbo.items.set("i4", { ...qbo.items.get("i4")!, Active: false });
