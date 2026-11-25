@@ -10,7 +10,7 @@ let qbo: FakeQbo;
 const sleeps: number[] = [];
 
 async function reset() {
-  await prisma.$executeRaw`TRUNCATE invoice_lines, invoices, items, customers, sync_runs, qbo_connection, audit_log, allowed_users, sku_conversions RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE payment_links, payments, invoice_lines, invoices, items, customers, sync_runs, qbo_connection, audit_log, allowed_users, sku_conversions RESTART IDENTITY CASCADE`;
 }
 
 function sync(extra: Partial<SyncOptions> = {}) {
@@ -120,7 +120,7 @@ describe("incremental runs (CDC)", () => {
     const cdc = qbo.calls.find((c) => c.includes("/cdc"))!;
     const since = new URL("http://x" + cdc).searchParams.get("changedSince")!;
     expect(new Date(since).getTime()).toBe(firstStart.getTime() - 3600_000);
-    expect(new URL("http://x" + cdc).searchParams.get("entities")).toBe("Invoice,CreditMemo,Item,Customer");
+    expect(new URL("http://x" + cdc).searchParams.get("entities")).toBe("Invoice,CreditMemo,Item,Customer,Payment");
   });
 
   it("marks a deleted invoice deleted, and the view drops it", async () => {
@@ -187,6 +187,41 @@ describe("incremental runs (CDC)", () => {
     expect(r.status).toBe("failed");
     expect(r.status === "failed" && r.error).toMatch(/returned 4 records but QuickBooks counts 5; nothing was marked deleted/);
     expect(await prisma.invoice.count({ where: { deleted: true } })).toBe(0);
+  });
+});
+
+describe("payments and due dates (Accounts Receivable)", () => {
+  it("loads due dates and payments, then picks up new and deleted payments by CDC", async () => {
+    qbo.putDoc("Invoice", doc("105", "2026-04-01", "58", [["1", 2, 161]], { DueDate: "2026-05-01" }));
+    qbo.putPayment("900", "2026-04-20", "58", 400, [["Invoice", "105", 322]]);
+    qbo.putPayment("901", "2023-06-01", "58", 10, []); // before the start date
+    await sync();
+    expect((await prisma.invoice.findFirstOrThrow({ where: { qboId: "105" } })).dueDate?.toISOString().slice(0, 10)).toBe("2026-05-01");
+    expect((await prisma.invoice.findFirstOrThrow({ where: { qboId: "100" } })).dueDate?.toISOString().slice(0, 10)).toBe("2026-01-05");
+    const p = await prisma.payment.findUniqueOrThrow({ where: { qboId: "900" }, include: { links: true } });
+    expect([p.totalAmt.toString(), p.unappliedAmt.toString()]).toEqual(["400", "78"]);
+    expect(p.links.map((l) => [l.txnType, l.txnId, l.amount.toString()])).toEqual([["Invoice", "105", "322"]]);
+    expect(await prisma.payment.count()).toBe(1);
+
+    qbo.tick(3600_000);
+    qbo.putPayment("902", "2026-04-25", "58", 78, []);
+    qbo.deleteDoc("Payment", "900");
+    const r = await sync();
+    expect(r.status === "succeeded" && r.kind).toBe("incremental");
+    expect((await prisma.payment.findUniqueOrThrow({ where: { qboId: "900" } })).deleted).toBe(true);
+    expect(await prisma.payment.count({ where: { deleted: false } })).toBe(1);
+  });
+
+  it("runs one full re-read when stored invoices have no due date yet", async () => {
+    await sync();
+    await prisma.invoice.updateMany({ where: { docType: "invoice" }, data: { dueDate: null } });
+    qbo.tick(3600_000);
+    const r = await sync();
+    expect(r.status === "succeeded" && [r.kind, r.note]).toEqual(["full", "Loading due dates and payments for Accounts Receivable: full re-read"]);
+    expect(await prisma.invoice.count({ where: { docType: "invoice", dueDate: null } })).toBe(0);
+    qbo.tick(3600_000);
+    const next = await sync();
+    expect(next.status === "succeeded" && next.kind).toBe("incremental");
   });
 });
 

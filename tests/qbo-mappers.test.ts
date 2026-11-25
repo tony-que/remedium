@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapCustomer, mapDoc, mapItem, QboMappingError, salesLines, type QboDoc } from "@/lib/qbo/mappers";
+import { mapCustomer, mapDoc, mapItem, mapPayment, QboMappingError, salesLines, type QboDoc } from "@/lib/qbo/mappers";
 
 const base: QboDoc = {
   Id: "130",
@@ -82,6 +82,12 @@ describe("mapDoc", () => {
     expect([voided.lines[0].qty, voided.lines[0].amount]).toEqual(["0", "0"]);
   });
 
+  it("keeps an invoice's due date, or its invoice date when it has none", () => {
+    expect(mapDoc("invoice", { ...base, DueDate: "2026-04-13" }).dueDate).toBe("2026-04-13");
+    expect(mapDoc("invoice", base).dueDate).toBe("2026-03-14");
+    expect(mapDoc("credit_memo", { ...base, DueDate: "2026-04-13" }).dueDate).toBeNull();
+  });
+
   it("maps credit memos the same way (the view makes them negative)", () => {
     const r = mapDoc("credit_memo", base);
     expect(r.docType).toBe("credit_memo");
@@ -129,5 +135,32 @@ describe("mapItem / mapCustomer", () => {
       displayName: "Lakeland Supplychain RDC",
       active: true,
     });
+  });
+});
+
+describe("mapPayment", () => {
+  it("keeps the unapplied amount and what each line was applied to", () => {
+    const r = mapPayment({
+      Id: "900",
+      TxnDate: "2026-11-10",
+      CustomerRef: { value: "58", name: "Lakeland" },
+      TotalAmt: 1200,
+      UnappliedAmt: 150,
+      MetaData: { LastUpdatedTime: "2026-11-10T09:00:00-06:00" },
+      Line: [
+        { Amount: 1000, LinkedTxn: [{ TxnId: "130", TxnType: "Invoice" }] },
+        { Amount: 50, LinkedTxn: [{ TxnId: "500", TxnType: "CreditMemo" }] },
+        { Amount: 5 },
+      ],
+    });
+    expect(r).toMatchObject({ qboId: "900", txnDate: "2026-11-10", customerQboId: "58", totalAmt: "1200", unappliedAmt: "150" });
+    expect(r.links).toEqual([
+      { lineNum: 1, txnType: "Invoice", txnId: "130", amount: "1000" },
+      { lineNum: 2, txnType: "CreditMemo", txnId: "500", amount: "50" },
+    ]);
+  });
+
+  it("rejects a payment without a customer", () => {
+    expect(() => mapPayment({ Id: "1", TxnDate: "2026-11-10", MetaData: { LastUpdatedTime: "2026-11-10T09:00:00Z" } })).toThrow(/CustomerRef/);
   });
 });

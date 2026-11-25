@@ -30,6 +30,8 @@ export interface QboDoc {
   CustomerRef?: Ref;
   TotalAmt?: number;
   Balance?: number;
+  /** Invoices only. */
+  DueDate?: string;
   MetaData?: { LastUpdatedTime?: string };
   Line?: QboLine[];
   /** Set to "Deleted" on CDC entries for deleted records. */
@@ -71,6 +73,8 @@ export interface DocRow {
   customerName: string | null;
   totalAmt: string;
   balance: string;
+  /** Invoices: DueDate, or TxnDate when QuickBooks has none. Credit memos: null. */
+  dueDate: string | null;
   lastUpdatedQbo: Date;
   lines: LineRow[];
 }
@@ -148,8 +152,56 @@ export function mapDoc(docType: DocType, doc: QboDoc): DocRow {
     customerName: doc.CustomerRef.name ?? null,
     totalAmt: dec(doc.TotalAmt),
     balance: dec(doc.Balance),
+    dueDate: docType === "invoice" ? (doc.DueDate && /^\d{4}-\d{2}-\d{2}$/.test(doc.DueDate) ? doc.DueDate : doc.TxnDate) : null,
     lastUpdatedQbo: updated,
     lines: salesLines(doc),
+  };
+}
+
+/** A QuickBooks Payment (receive payment). */
+export interface QboPayment {
+  Id: string;
+  TxnDate?: string;
+  CustomerRef?: Ref;
+  TotalAmt?: number;
+  UnappliedAmt?: number;
+  MetaData?: { LastUpdatedTime?: string };
+  Line?: { Amount?: number; LinkedTxn?: { TxnId?: string; TxnType?: string }[] }[];
+  status?: string;
+}
+
+export interface PaymentRow {
+  qboId: string;
+  txnDate: string;
+  customerQboId: string;
+  customerName: string | null;
+  totalAmt: string;
+  unappliedAmt: string;
+  lastUpdatedQbo: Date;
+  links: { lineNum: number; txnType: string; txnId: string; amount: string }[];
+}
+
+export function mapPayment(p: QboPayment): PaymentRow {
+  if (!p.Id) throw new QboMappingError("Payment without an Id");
+  if (!p.TxnDate || !/^\d{4}-\d{2}-\d{2}$/.test(p.TxnDate)) throw new QboMappingError(`Payment ${p.Id} has no valid TxnDate`);
+  if (!p.CustomerRef?.value) throw new QboMappingError(`Payment ${p.Id} has no CustomerRef`);
+  const updated = p.MetaData?.LastUpdatedTime ? new Date(p.MetaData.LastUpdatedTime) : null;
+  if (!updated || Number.isNaN(updated.getTime())) throw new QboMappingError(`Payment ${p.Id} has no valid MetaData.LastUpdatedTime`);
+  const links: PaymentRow["links"] = [];
+  for (const l of p.Line ?? []) {
+    // A line normally links one transaction; the amount belongs to the first.
+    const t = (l.LinkedTxn ?? []).find((x) => x.TxnId && x.TxnType);
+    if (t) links.push({ lineNum: links.length + 1, txnType: t.TxnType!, txnId: t.TxnId!, amount: dec(l.Amount) });
+  }
+  return {
+    qboId: p.Id,
+    txnDate: p.TxnDate,
+    customerQboId: p.CustomerRef.value,
+    customerName: p.CustomerRef.name ?? null,
+    totalAmt: dec(p.TotalAmt),
+    unappliedAmt: dec(p.UnappliedAmt),
+    lastUpdatedQbo: updated,
+    links,
   };
 }
 

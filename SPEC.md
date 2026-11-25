@@ -236,3 +236,13 @@ A second page, **Inventory** (`/inventory`), shows stock from QuickBooks next to
 - **Months on hand:** available ÷ monthly usage.
 - **Reorder rule:** a PO takes 60 days to arrive for SKUs ending in B and 90 days for the rest, and stock must never fall below 3 months, so a SKU is **Order now** when available + on open POs is under 3 months of usage plus its lead time (3 + 60 ÷ 30.44 ≈ 4.97 months for B SKUs, 3 + 90 ÷ 30.44 ≈ 5.96 for the rest). The suggested order brings it back to that level, and the order-by date is when it gets there at the current pace. **Below 3 months** means available stock alone is under the floor. **Order within 30 days** gives notice a month ahead.
 - **Views:** reorder alerts, inventory value (on hand × cost) by line, and on hand by SKU, with the product-line filter and a cases/eaches toggle.
+
+## Accounts Receivable
+
+A **Receivables** tab, open to everyone on the allow-list, built from the nightly QuickBooks sync.
+
+- **Data:** invoices now keep QuickBooks' `DueDate` (the invoice date when it has none). Customer **payments** are synced the same way as invoices (CDC nightly, full re-read as the fallback, from `SYNC_START_DATE`) into `payments` (with `unapplied_amt`) and `payment_links` (what each payment line was applied to). The first sync after this change runs a full re-read automatically to load due dates and payments.
+- **Key numbers:** total AR (open invoice balances less open credit memo balances and unapplied payments, matching the QuickBooks A/R Aging Summary apart from journal entries to A/R), past due ($ and % of open invoice balances), over 90 days past due, and DSO = total AR ÷ the last 90 days' invoices less credit memos × 90.
+- **Aging by customer:** Current, 1–30, 31–60, 61–90 and over 90 days past due, credits, and total per customer, sorted by total. Clicking a customer filters the open invoice list.
+- **Open invoices:** invoice number, customer, date, due date, days past due, total and balance, most overdue first.
+- **AR over time:** net AR and past-due invoice balances at each of the last 12 month ends and today. Each point is worked back from today's balances by undoing the invoices, credit memos and payments dated after it (and, for past due, the payment amounts applied to each invoice after it).

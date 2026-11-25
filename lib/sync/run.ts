@@ -10,18 +10,32 @@ import {
   mapCustomer,
   mapDoc,
   mapItem,
+  mapPayment,
   type DocType,
   type QboCustomer,
   type QboDoc,
   type QboItem,
+  type QboPayment,
 } from "@/lib/qbo/mappers";
-import { markDeleted, reconcileDeleted, upsertCustomers, upsertDocs, upsertItems } from "./store";
+import {
+  markDeleted,
+  markPaymentsDeleted,
+  reconcileDeleted,
+  reconcileDeletedPayments,
+  upsertCustomers,
+  upsertDocs,
+  upsertItems,
+  upsertPayments,
+} from "./store";
 
 // One sync run. The nightly cron and the admin's Refresh now both call
 // runSync(); a unique index on sync_runs lets only one run at a time.
 //
 // * Incremental (normal): Change Data Capture since the last successful run's
 //   start, minus an hour of overlap.
+// Invoices, credit memos and customer payments (for Accounts Receivable) are
+// read from SYNC_START_DATE; items and customers in full.
+//
 // * Full: re-reads everything since SYNC_START_DATE and marks documents that
 //   are gone as deleted. Used for the first backfill, when the admin asks for
 //   it, when the last success is too old for CDC (30 days), and as the
@@ -89,14 +103,18 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
 
   const prev = await lastSuccess();
   const tooOld = !prev || now().getTime() - prev.startedAt.getTime() > CDC_MAX_AGE_MS - CDC_OVERLAP_MS;
-  let kind: SyncKind = opts.mode === "full" || tooOld ? "full" : "incremental";
+  // Invoices stored before due dates were synced (Accounts Receivable) need one full re-read.
+  const needsArBackfill = !!prev && (await prisma.invoice.count({ where: { docType: "invoice", deleted: false, dueDate: null } })) > 0;
+  let kind: SyncKind = opts.mode === "full" || tooOld || needsArBackfill ? "full" : "incremental";
   let note: string | null = !prev
     ? "First run: full backfill"
     : opts.mode === "full"
       ? "Full re-read requested"
       : tooOld
         ? "Last success over 30 days ago: full re-read"
-        : null;
+        : needsArBackfill
+          ? "Loading due dates and payments for Accounts Receivable: full re-read"
+          : null;
 
   // Take the lock.
   let runId: bigint;
@@ -141,7 +159,7 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
     if (kind === "incremental") {
       const since = new Date(prev!.startedAt.getTime() - CDC_OVERLAP_MS);
       try {
-        const changed = await client.cdc(["Invoice", "CreditMemo", "Item", "Customer"], since);
+        const changed = await client.cdc(["Invoice", "CreditMemo", "Item", "Customer", "Payment"], since);
         const full = Object.entries(changed).find(([, list]) => list.length >= CDC_ENTITY_LIMIT);
         if (full) {
           kind = "full";
@@ -194,6 +212,10 @@ async function applyCdc(changed: Record<string, unknown[]>, startDate: string, c
     counts.invoicesUpserted += (await upsertDocs(live)).upserted;
     counts.invoicesDeleted += await markDeleted(docType, deleted);
   }
+
+  const payments = changed.Payment as QboPayment[];
+  await upsertPayments(payments.filter((p) => !isDeleted(p) && (p.TxnDate ?? "") >= startDate).map(mapPayment));
+  await markPaymentsDeleted(payments.filter(isDeleted).map((p) => p.Id));
 }
 
 async function fullSync(client: QboClient, startDate: string, counts: Counts) {
@@ -223,6 +245,19 @@ async function fullSync(client: QboClient, startDate: string, counts: Counts) {
     }
     counts.invoicesDeleted += await reconcileDeleted(docType, seen, startDate);
   }
+
+  // Customer payments, for Accounts Receivable.
+  const where = `TxnDate >= '${startDate}'`;
+  const expected = await client.count("Payment", where);
+  const seen = new Set<string>();
+  for await (const page of client.queryAll<QboPayment>("Payment", where, "TxnDate")) {
+    for (const p of page) seen.add(p.Id);
+    await upsertPayments(page.map(mapPayment), { rewriteUnchanged: true });
+  }
+  if (seen.size < expected) {
+    throw new Error(`Full re-read of Payment returned ${seen.size} records but QuickBooks counts ${expected}; nothing was marked deleted. Run it again.`);
+  }
+  await reconcileDeletedPayments(seen, startDate);
 }
 
 /**

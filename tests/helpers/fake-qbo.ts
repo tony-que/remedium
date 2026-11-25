@@ -1,4 +1,4 @@
-import type { QboCustomer, QboDoc, QboItem } from "@/lib/qbo/mappers";
+import type { QboCustomer, QboDoc, QboItem, QboPayment } from "@/lib/qbo/mappers";
 import type { QboBill, QboPurchaseOrder } from "@/lib/inventory/purchase-orders";
 
 // An in-memory stand-in for Intuit's token endpoint and Accounting API, used
@@ -8,7 +8,7 @@ import type { QboBill, QboPurchaseOrder } from "@/lib/inventory/purchase-orders"
 // * STARTPOSITION / MAXRESULTS paging and SELECT COUNT(*)
 // * CDC returns records changed since a time, deleted ones as tombstones
 
-type Entity = "Invoice" | "CreditMemo" | "Item" | "Customer" | "PurchaseOrder" | "Bill";
+type Entity = "Invoice" | "CreditMemo" | "Item" | "Customer" | "PurchaseOrder" | "Bill" | "Payment";
 
 export class FakeQbo {
   invoices = new Map<string, QboDoc>();
@@ -17,6 +17,7 @@ export class FakeQbo {
   customers = new Map<string, QboCustomer>();
   purchaseOrders = new Map<string, QboPurchaseOrder>();
   bills = new Map<string, QboBill>();
+  payments = new Map<string, QboPayment>();
   /** Deleted documents: entity, id, when. */
   tombstones: { entity: Entity; id: string; at: Date }[] = [];
 
@@ -45,7 +46,7 @@ export class FakeQbo {
     return this.clock;
   }
 
-  private store(entity: Entity): Map<string, QboDoc | QboItem | QboCustomer | QboPurchaseOrder | QboBill> {
+  private store(entity: Entity): Map<string, QboDoc | QboItem | QboCustomer | QboPurchaseOrder | QboBill | QboPayment> {
     return {
       Invoice: this.invoices,
       CreditMemo: this.creditMemos,
@@ -53,6 +54,7 @@ export class FakeQbo {
       Customer: this.customers,
       PurchaseOrder: this.purchaseOrders,
       Bill: this.bills,
+      Payment: this.payments,
     }[entity];
   }
 
@@ -63,7 +65,23 @@ export class FakeQbo {
     return stamped;
   }
 
-  deleteDoc(entity: "Invoice" | "CreditMemo", id: string) {
+  /** A payment from a customer, applied to [txnType, txnId, amount] links. */
+  putPayment(id: string, date: string, customer: string, total: number, links: [string, string, number][]) {
+    const applied = links.filter(([t]) => t === "Invoice").reduce((t, [, , a]) => t + a, 0) - links.filter(([t]) => t === "CreditMemo").reduce((t, [, , a]) => t + a, 0);
+    const p: QboPayment = {
+      Id: id,
+      TxnDate: date,
+      CustomerRef: { value: customer, name: `Customer ${customer}` },
+      TotalAmt: total,
+      UnappliedAmt: Math.round((total - applied) * 100) / 100,
+      Line: links.map(([TxnType, TxnId, Amount]) => ({ Amount, LinkedTxn: [{ TxnId, TxnType }] })),
+      MetaData: { LastUpdatedTime: this.tick().toISOString() },
+    };
+    this.payments.set(id, p);
+    return p;
+  }
+
+  deleteDoc(entity: "Invoice" | "CreditMemo" | "Payment", id: string) {
     this.store(entity).delete(id);
     this.tombstones.push({ entity, id, at: this.tick() });
   }
