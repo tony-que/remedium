@@ -81,10 +81,12 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const byMonths = [...rows].sort((a, b) => (a.monthsOnHand ?? Infinity) - (b.monthsOnHand ?? Infinity) || a.sku.localeCompare(b.sku));
   const bySku = new Map(all.map((r) => [r.sku, r]));
   const pos = allPos.filter((p) => !f.line || p.line === f.line);
-  const showPo = (sku: string, cases: number) => {
-    const r = bySku.get(sku);
+  const showPo = (sku: string | null, cases: number | null) => {
+    if (cases === null) return "—";
+    const r = sku ? bySku.get(sku) : undefined;
     return r ? show(r, cases) : f.unit === "cases" ? qty(cases) : "—";
   };
+
   const openDollars = pos.reduce((t, p) => t + (p.openAmount ?? 0), 0);
   const totalValue = rows.reduce((s, r) => s + (r.value ?? 0), 0);
   const noCost = rows.filter((r) => r.value === null && r.onHand > 0).length;
@@ -202,7 +204,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
           <Card
             title="Open purchase orders"
-            subtitle={`${pos.length} line${pos.length === 1 ? "" : "s"} still to receive (${money(openDollars)}), counted in "On open POs" · soonest expected first · quantities in ${unitLabel}`}
+            subtitle={`${pos.length} line${pos.length === 1 ? "" : "s"} still to receive (${money(openDollars)}) on every open QuickBooks PO · lines for SKUs on this dashboard count in "On open POs" · soonest expected first · quantities in ${unitLabel}`}
           >
             {pos.length === 0 ? (
               <p className="text-sm text-secondary">No open QuickBooks purchase orders with anything left to receive.</p>
@@ -227,7 +229,11 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                       <tr key={`${p.docNumber}-${p.sku}-${i}`} className="border-b border-line last:border-0">
                         <td className="px-2 py-1.5 font-medium">{p.docNumber ?? "—"}</td>
                         <td className="px-2 py-1.5">{p.vendor ?? "—"}</td>
-                        <td className="px-2 py-1.5">{p.sku}</td>
+                        <td className="px-2 py-1.5">
+                          {p.sku ?? p.itemName ?? "—"}
+                          {p.description && p.description !== p.sku && <span className="block max-w-[16rem] truncate text-xs text-muted">{p.description}</span>}
+                          {!p.counted && <span className="block text-xs text-muted">Not counted in stock</span>}
+                        </td>
                         <td className="whitespace-nowrap px-2 py-1.5">{dayLabel(p.txnDate, true)}</td>
                         <td className="whitespace-nowrap px-2 py-1.5">{p.expectedDate ? dayLabel(p.expectedDate, true) : "—"}</td>
                         <td className="px-2 py-1.5 text-right tabular">{showPo(p.sku, p.ordered)}</td>
@@ -323,7 +329,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             <div className="mt-2 flex flex-col gap-2">
               <p>
                 Stock comes from QuickBooks: <em>available</em> is quantity on hand less what&apos;s on open sales orders (<em>reserved</em>), and{" "}
-                <em>on open POs</em> is what&apos;s still to receive on open QuickBooks purchase orders: each line&apos;s quantity less what&apos;s been billed against it. Closed POs don&apos;t count. Only items that track quantity on hand appear, and Amazon variants (SKUs ending in -AMZ) are left out. Cost is
+                <em>on open POs</em> is what&apos;s still to receive on open QuickBooks purchase orders: each line&apos;s quantity less what&apos;s been billed against it. Closed POs don&apos;t count. The open purchase orders list shows every open PO line; lines for items not on this dashboard (not stock-tracked, Amazon variants, expense categories) are listed but marked &ldquo;Not counted in stock&rdquo;. Only items that track quantity on hand appear, and Amazon variants (SKUs ending in -AMZ) are left out. Cost is
                 each item&apos;s purchase cost in QuickBooks.
               </p>
               <p>

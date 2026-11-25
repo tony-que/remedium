@@ -207,23 +207,31 @@ model InventoryLevel {
   @@map("inventory_levels")
 }
 
-/// Lines of open QuickBooks purchase orders still to be received, replaced on
-/// every inventory sync. Quantities are in QuickBooks units (cases).
+/// Every line of open QuickBooks purchase orders still to be received,
+/// replaced on every inventory sync. Quantities are in QuickBooks units (cases).
 model OpenPoLine {
   poQboId      String    @map("po_qbo_id")
   lineId       String    @map("line_id")
-  sku          String
-  itemQboId    String    @map("item_qbo_id")
+  /// Null on category lines and items not in the item list.
+  sku          String?
+  itemQboId    String?   @map("item_qbo_id")
+  itemName     String?   @map("item_name")
+  description  String?
+  /// True when the line counts toward the SKU's "On open POs" (a stock-tracked SKU on the dashboard).
+  counted      Boolean   @default(false)
   docNumber    String?   @map("doc_number")
   vendor       String?
   txnDate      DateTime  @map("txn_date") @db.Date
   /// The PO's due date (or ship date), when it has one.
   expectedDate DateTime? @map("expected_date") @db.Date
-  qtyOrdered   Decimal   @map("qty_ordered") @db.Decimal(14, 2)
-  qtyRemaining Decimal   @map("qty_remaining") @db.Decimal(14, 2)
+  /// Null on lines without a quantity (category lines, amount-only item lines).
+  qtyOrdered   Decimal?  @map("qty_ordered") @db.Decimal(14, 2)
+  qtyRemaining Decimal?  @map("qty_remaining") @db.Decimal(14, 2)
   /// The PO line's dollar amount, and cost per unit, when QuickBooks has them.
   amount       Decimal?  @db.Decimal(14, 2)
   unitPrice    Decimal?  @map("unit_price") @db.Decimal(14, 4)
+  /// Dollars still to receive, when known.
+  openAmount   Decimal?  @map("open_amount") @db.Decimal(14, 2)
   syncedAt     DateTime  @map("synced_at") @db.Timestamptz(3)
 
   @@id([poQboId, lineId])

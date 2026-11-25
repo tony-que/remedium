@@ -94,36 +94,50 @@ export async function inventoryRows(today: string): Promise<InventoryRow[]> {
 }
 
 export interface OpenPo {
-  sku: string;
-  line: ProductLine;
+  /** Null on category lines and items not in the item list. */
+  sku: string | null;
+  /** The item's or expense account's name on the PO line. */
+  itemName: string | null;
+  description: string | null;
+  /** Null when there's no SKU. */
+  line: ProductLine | null;
+  /** True when the line counts toward the SKU's "On open POs". */
+  counted: boolean;
   docNumber: string | null;
   vendor: string | null;
   /** YYYY-MM-DD */
   txnDate: string;
   expectedDate: string | null;
-  ordered: number;
-  remaining: number;
+  /** Null on lines without a quantity. */
+  ordered: number | null;
+  remaining: number | null;
   /** PO line dollar amount, or null. */
   amount: number | null;
-  /** Dollars still to receive (remaining × unit price), or null. */
+  /** Dollars still to receive, or null. */
   openAmount: number | null;
 }
 
-/** Open purchase order lines still to receive, soonest expected first. */
+/** Every open purchase order line still to receive, soonest expected first, then by PO. */
 export async function openPurchaseOrders(): Promise<OpenPo[]> {
-  const rows = await prisma.openPoLine.findMany({ orderBy: [{ expectedDate: { sort: "asc", nulls: "last" } }, { txnDate: "asc" }, { sku: "asc" }] });
+  const rows = await prisma.openPoLine.findMany({
+    orderBy: [{ expectedDate: { sort: "asc", nulls: "last" } }, { txnDate: "asc" }, { docNumber: "asc" }, { lineId: "asc" }],
+  });
   const d = (x: Date | null) => (x ? x.toISOString().slice(0, 10) : null);
+  const n = (x: { toString(): string } | null) => (x === null ? null : Number(x));
   return rows.map((r) => ({
     sku: r.sku,
-    line: productLineOf(r.sku),
+    itemName: r.itemName,
+    description: r.description,
+    line: r.sku ? productLineOf(r.sku) : null,
+    counted: r.counted,
     docNumber: r.docNumber,
     vendor: r.vendor,
     txnDate: d(r.txnDate)!,
     expectedDate: d(r.expectedDate),
-    ordered: Number(r.qtyOrdered),
-    remaining: Number(r.qtyRemaining),
-    amount: r.amount === null ? null : Number(r.amount),
-    openAmount: r.unitPrice === null ? null : Math.round(Number(r.unitPrice) * Number(r.qtyRemaining) * 100) / 100,
+    ordered: n(r.qtyOrdered),
+    remaining: n(r.qtyRemaining),
+    amount: n(r.amount),
+    openAmount: n(r.openAmount),
   }));
 }
 

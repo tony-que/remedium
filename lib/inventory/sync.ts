@@ -98,18 +98,20 @@ export async function runInventorySync(opts: InventorySyncOptions): Promise<Inve
       const earliest = open.map((p) => p.TxnDate!.slice(0, 10)).sort()[0];
       for await (const page of client.queryAll<QboBill>("Bill", `TxnDate >= '${earliest}'`)) bills.push(...page);
     }
-    const skuOfItem = new Map<string, string>();
+    // SKUs for every item a PO line can name, inactive ones included (stored by the sales sync).
+    const skuOfItem = new Map<string, string>((await prisma.item.findMany({ select: { qboId: true, sku: true } })).map((i) => [i.qboId, i.sku]));
     for (const it of items) {
       const fullName = (it.FullyQualifiedName ?? it.Name ?? "").trim();
       if (it.Id && fullName) skuOfItem.set(it.Id, parseItemName(fullName).sku);
     }
     const tracked = new Set(rows.map((r) => r.sku));
-    const poLines = openPoLines(open, bills).flatMap((l) => {
-      const sku = skuOfItem.get(l.itemQboId);
-      return sku && tracked.has(sku) ? [{ ...l, sku }] : [];
+    // Every open line is listed; only lines for SKUs on the dashboard count toward "On open POs".
+    const poLines = openPoLines(open, bills).map((l) => {
+      const sku = l.itemQboId ? (skuOfItem.get(l.itemQboId) ?? null) : null;
+      return { ...l, sku, counted: !!sku && tracked.has(sku) && l.remaining !== null };
     });
     const onOrder = new Map<string, number>();
-    for (const l of poLines) onOrder.set(l.sku, (onOrder.get(l.sku) ?? 0) + l.remaining);
+    for (const l of poLines) if (l.counted) onOrder.set(l.sku!, (onOrder.get(l.sku!) ?? 0) + l.remaining!);
     // If QuickBooks ever does report quantity on PO for an item, don't count less than it.
     for (const r of rows) r.qtyIncoming = Math.max(r.qtyIncoming, onOrder.get(r.sku) ?? 0);
 
@@ -124,14 +126,18 @@ export async function runInventorySync(opts: InventorySyncOptions): Promise<Inve
           lineId: l.lineId,
           sku: l.sku,
           itemQboId: l.itemQboId,
+          itemName: l.itemName,
+          description: l.description,
+          counted: l.counted,
           docNumber: l.docNumber,
           vendor: l.vendor,
           txnDate: day(l.txnDate),
           expectedDate: l.expectedDate ? day(l.expectedDate) : null,
-          qtyOrdered: dec(l.ordered),
-          qtyRemaining: dec(l.remaining),
+          qtyOrdered: l.ordered === null ? null : dec(l.ordered),
+          qtyRemaining: l.remaining === null ? null : dec(l.remaining),
           amount: l.amount === null ? null : dec(l.amount),
           unitPrice: l.unitPrice === null ? null : new Prisma.Decimal(l.unitPrice.toFixed(4)),
+          openAmount: l.openAmount === null ? null : dec(l.openAmount),
           syncedAt,
         })),
       }),
@@ -153,7 +159,7 @@ export async function runInventorySync(opts: InventorySyncOptions): Promise<Inve
       }),
     ]);
 
-    const note = [`${items.length} items read`, `${open.length} open POs, ${poLines.length} lines to receive`, duplicateSkus.length ? `same SKU on two items, counted once: ${duplicateSkus.slice(0, 10).join(", ")}` : null]
+    const note = [`${items.length} items read`, `${open.length} open POs, ${poLines.length} lines to receive (${poLines.filter((l) => l.counted).length} for stock-tracked SKUs)`, duplicateSkus.length ? `same SKU on two items, counted once: ${duplicateSkus.slice(0, 10).join(", ")}` : null]
       .filter(Boolean)
       .join("; ");
     await prisma.inventorySyncRun.update({

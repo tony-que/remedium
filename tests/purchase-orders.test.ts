@@ -50,3 +50,36 @@ describe("PO line dollars", () => {
     expect(l).toMatchObject({ remaining: 200, amount: 900, unitPrice: 3, openAmount: 600 });
   });
 });
+
+describe("lines without a quantity", () => {
+  it("lists category lines and amount-only item lines by dollars, less what's been billed", () => {
+    const lines = openPoLines(
+      [
+        {
+          Id: "p9",
+          DocNumber: "1384",
+          TxnDate: "2026-11-01",
+          Line: [
+            { Id: "1", DetailType: "AccountBasedExpenseLineDetail", Amount: 5000, Description: "Tooling", AccountBasedExpenseLineDetail: { AccountRef: { value: "80", name: "Inventory Asset" } } },
+            { Id: "2", DetailType: "ItemBasedExpenseLineDetail", Amount: 1200, ItemBasedExpenseLineDetail: { ItemRef: { value: "i7", name: "REMWBG22" } } },
+            { Id: "3", DetailType: "AccountBasedExpenseLineDetail", Amount: 300, AccountBasedExpenseLineDetail: { AccountRef: { value: "81", name: "Freight In" } } },
+          ],
+        },
+      ],
+      [
+        {
+          Id: "b9",
+          Line: [
+            { Id: "1", DetailType: "AccountBasedExpenseLineDetail", Amount: 2000, LinkedTxn: [{ TxnId: "p9", TxnType: "PurchaseOrder", TxnLineId: "1" }] },
+            { Id: "2", DetailType: "AccountBasedExpenseLineDetail", Amount: 300, LinkedTxn: [{ TxnId: "p9", TxnType: "PurchaseOrder", TxnLineId: "3" }] },
+          ],
+        },
+      ],
+    );
+    expect(lines.map((l) => [l.lineId, l.itemQboId, l.itemName, l.description, l.ordered, l.remaining, l.amount, l.openAmount])).toEqual([
+      ["1", null, "Inventory Asset", "Tooling", null, null, 5000, 3000],
+      ["2", "i7", "REMWBG22", null, null, null, 1200, 1200],
+    ]);
+    expect(lines[0].docNumber).toBe("1384");
+  });
+});
