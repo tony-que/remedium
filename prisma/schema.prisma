@@ -38,6 +38,8 @@ model Invoice {
   customerName   String?  @map("customer_name")
   totalAmt       Decimal  @map("total_amt") @db.Decimal(14, 2)
   balance        Decimal  @db.Decimal(14, 2)
+  /// Invoices only: DueDate (TxnDate when QuickBooks has none). Null on credit memos.
+  dueDate        DateTime? @map("due_date") @db.Date
   lastUpdatedQbo DateTime @map("last_updated_qbo") @db.Timestamptz(3)
   deleted        Boolean  @default(false)
   syncedAt       DateTime @default(now()) @map("synced_at") @db.Timestamptz(3)
@@ -48,6 +50,44 @@ model Invoice {
   @@index([txnDate])
   @@index([customerQboId])
   @@map("invoices")
+}
+
+/// Customer payments (receive payment), for Accounts Receivable: unapplied
+/// amounts are credits on the customer's account, and the links say which
+/// invoices and credit memos each payment was applied to (to rebuild past AR).
+model Payment {
+  qboId          String   @id @map("qbo_id")
+  txnDate        DateTime @map("txn_date") @db.Date
+  customerQboId  String   @map("customer_qbo_id")
+  customerName   String?  @map("customer_name")
+  totalAmt       Decimal  @map("total_amt") @db.Decimal(14, 2)
+  unappliedAmt   Decimal  @map("unapplied_amt") @db.Decimal(14, 2)
+  lastUpdatedQbo DateTime @map("last_updated_qbo") @db.Timestamptz(3)
+  deleted        Boolean  @default(false)
+  syncedAt       DateTime @default(now()) @map("synced_at") @db.Timestamptz(3)
+
+  links PaymentLink[]
+
+  @@index([txnDate])
+  @@index([customerQboId])
+  @@map("payments")
+}
+
+/// One line of a payment: the amount applied to an invoice or credit memo.
+model PaymentLink {
+  id           BigInt  @id @default(autoincrement())
+  paymentQboId String  @map("payment_qbo_id")
+  lineNum      Int     @map("line_num")
+  /// "Invoice", "CreditMemo", "JournalEntry", ...
+  txnType      String  @map("txn_type")
+  txnId        String  @map("txn_id")
+  amount       Decimal @db.Decimal(14, 2)
+
+  payment Payment @relation(fields: [paymentQboId], references: [qboId], onDelete: Cascade)
+
+  @@index([txnType, txnId])
+  @@index([paymentQboId])
+  @@map("payment_links")
 }
 
 /// Only SalesItemLineDetail lines. An edited invoice has all of its lines

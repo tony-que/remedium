@@ -188,6 +188,7 @@ async function seedFakeData() {
           customerName: CUSTOMERS[doc.customer - 1][1],
           totalAmt: money(total),
           balance: money(doc.type === "invoice" && doc.date >= "2026-10-01" ? total : 0),
+          dueDate: doc.type === "invoice" ? new Date(new Date(`${doc.date}T00:00:00Z`).getTime() + 30 * 86_400_000) : null,
           lastUpdatedQbo: new Date(`${doc.date}T15:00:00Z`),
           deleted: doc.deleted ?? false,
           lines: {

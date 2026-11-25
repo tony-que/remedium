@@ -43,6 +43,11 @@ test("admin reads, filters and exports the dashboard", async ({ page }) => {
   const cents = rows.reduce((s, r) => s + Math.round(Number(r.split(",")[amountCol]) * 100), 0);
   expect(cents).toBe(57836580);
 
+  // Receivables: the seed's invoices from October on are open.
+  await page.goto("/receivables");
+  await expect(page.getByRole("heading", { name: "Aging by customer" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Open invoices" })).toBeVisible();
+
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Eaches conversions" })).toBeVisible();
 });

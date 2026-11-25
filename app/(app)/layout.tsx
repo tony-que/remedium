@@ -24,6 +24,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/inventory" className="underline underline-offset-4 hover:opacity-80">
               Inventory
             </Link>
+            <Link href="/receivables" className="underline underline-offset-4 hover:opacity-80">
+              Receivables
+            </Link>
             {role === "admin" && (
               <Link href="/admin" className="underline underline-offset-4 hover:opacity-80">
                 Admin

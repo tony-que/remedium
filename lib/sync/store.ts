@@ -1,6 +1,6 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
-import type { DocRow, DocType } from "@/lib/qbo/mappers";
+import type { DocRow, DocType, PaymentRow } from "@/lib/qbo/mappers";
 import type { mapCustomer, mapItem } from "@/lib/qbo/mappers";
 
 // Database writes for the sync. Each page of documents is written in one
@@ -54,6 +54,7 @@ export async function upsertDocs(rows: DocRow[], opts: { rewriteUnchanged?: bool
           customerName: r.customerName,
           totalAmt: new Prisma.Decimal(r.totalAmt),
           balance: new Prisma.Decimal(r.balance),
+          dueDate: r.dueDate ? day(r.dueDate) : null,
           lastUpdatedQbo: r.lastUpdatedQbo,
           deleted: false,
           syncedAt: new Date(),
@@ -106,6 +107,66 @@ export async function markDeleted(docType: DocType, qboIds: string[]): Promise<n
 export async function reconcileDeleted(docType: DocType, seenIds: Set<string>, startDate: string): Promise<number> {
   const { count } = await prisma.invoice.updateMany({
     where: { docType, deleted: false, txnDate: { gte: day(startDate) }, qboId: { notIn: [...seenIds] } },
+    data: { deleted: true, syncedAt: new Date() },
+  });
+  return count;
+}
+
+/** Writes payments newer than the stored copy (same rule as upsertDocs), replacing their links. */
+export async function upsertPayments(rows: PaymentRow[], opts: { rewriteUnchanged?: boolean } = {}): Promise<number> {
+  if (rows.length === 0) return 0;
+  const newest = new Map<string, PaymentRow>();
+  for (const r of rows) {
+    const prev = newest.get(r.qboId);
+    if (!prev || r.lastUpdatedQbo >= prev.lastUpdatedQbo) newest.set(r.qboId, r);
+  }
+  const batch = [...newest.values()];
+  return prisma.$transaction(
+    async (tx) => {
+      const existing = await tx.payment.findMany({ where: { qboId: { in: batch.map((r) => r.qboId) } }, select: { qboId: true, lastUpdatedQbo: true } });
+      const stored = new Map(existing.map((e) => [e.qboId, e.lastUpdatedQbo]));
+      const keep = batch.filter((r) => {
+        const s = stored.get(r.qboId);
+        if (!s) return true;
+        return opts.rewriteUnchanged ? r.lastUpdatedQbo >= s : r.lastUpdatedQbo > s;
+      });
+      for (const r of keep) {
+        const data = {
+          txnDate: day(r.txnDate),
+          customerQboId: r.customerQboId,
+          customerName: r.customerName,
+          totalAmt: new Prisma.Decimal(r.totalAmt),
+          unappliedAmt: new Prisma.Decimal(r.unappliedAmt),
+          lastUpdatedQbo: r.lastUpdatedQbo,
+          deleted: false,
+          syncedAt: new Date(),
+        };
+        await tx.payment.upsert({ where: { qboId: r.qboId }, create: { qboId: r.qboId, ...data }, update: data });
+      }
+      const ids = keep.map((r) => r.qboId);
+      if (ids.length > 0) {
+        await tx.paymentLink.deleteMany({ where: { paymentQboId: { in: ids } } });
+        const links = keep.flatMap((r) =>
+          r.links.map((l) => ({ paymentQboId: r.qboId, lineNum: l.lineNum, txnType: l.txnType, txnId: l.txnId, amount: new Prisma.Decimal(l.amount) })),
+        );
+        if (links.length > 0) await tx.paymentLink.createMany({ data: links });
+      }
+      return keep.length;
+    },
+    { timeout: 120_000, maxWait: 30_000 },
+  );
+}
+
+export async function markPaymentsDeleted(qboIds: string[]): Promise<number> {
+  if (qboIds.length === 0) return 0;
+  const { count } = await prisma.payment.updateMany({ where: { qboId: { in: qboIds }, deleted: false }, data: { deleted: true, syncedAt: new Date() } });
+  return count;
+}
+
+/** After a complete re-read of payments from `startDate`: marks the ones QuickBooks no longer returned as deleted. */
+export async function reconcileDeletedPayments(seenIds: Set<string>, startDate: string): Promise<number> {
+  const { count } = await prisma.payment.updateMany({
+    where: { deleted: false, txnDate: { gte: day(startDate) }, qboId: { notIn: [...seenIds] } },
     data: { deleted: true, syncedAt: new Date() },
   });
   return count;
